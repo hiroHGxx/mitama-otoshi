@@ -69,19 +69,27 @@
   }
 
   // ---- 物理エンジン ----
-  const engine = Engine.create({ enableSleeping: true });
+  // スリープ有効だと壁に接触した玉が空中で眠って「刺さる」ため無効化
+  const engine = Engine.create({ enableSleeping: false });
   engine.positionIterations = 10;
   engine.velocityIterations = 8;
   const world = engine.world;
 
-  const wallOpts = { isStatic: true, friction: 0.4, restitution: 0 };
+  // 見た目の壺: 壁の線は x=42..56 / 底の線は y=691..705 に描かれる。
+  // 物理の内面はそれに 2px の余白を足して合わせ、めり込んで見えないようにする。
+  const INSET = 2;
+  const CUP_L = 42 + WALL + INSET;      // 物理の内側（左）
+  const CUP_R = W - 42 - WALL - INSET;  // 物理の内側（右）
+  const PHYS_FLOOR_TOP = FLOOR_Y - 13;  // 描画の底の上面に一致
+
+  // 壁は摩擦を低くして、触れた玉が引っかからず滑り落ちるようにする
+  const wallOpts = { isStatic: true, friction: 0.08, restitution: 0 };
   World.add(world, [
-    Bodies.rectangle(W / 2, FLOOR_Y + 40, W, 80, wallOpts),                      // 底
-    // 物理壁は画面上端まで延長（縁に玉が乗るのを防ぐ）。見た目の壺は CUP_TOP から描画
-    Bodies.rectangle(WALL / 2 + 42, H / 2, WALL, H, wallOpts),      // 左
-    Bodies.rectangle(W - WALL / 2 - 42, H / 2, WALL, H, wallOpts),  // 右
+    Bodies.rectangle(W / 2, PHYS_FLOOR_TOP + 40, W, 80, wallOpts),  // 底
+    // 物理壁は画面上端まで延長（縁に玉が乗るのを防ぐ）。厚みも増して貫通を防止
+    Bodies.rectangle(CUP_L - 40, H / 2, 80, H, wallOpts),   // 左
+    Bodies.rectangle(CUP_R + 40, H / 2, 80, H, wallOpts),   // 右
   ]);
-  const CUP_L = 42 + WALL, CUP_R = W - 42 - WALL; // 壺の内側 x 範囲
 
   // ---- 状態 ----
   let score = 0;
@@ -279,15 +287,16 @@
     ctx.strokeStyle = "#4a4468";
     ctx.lineWidth = WALL;
     ctx.lineCap = "round";
+    const visL = CUP_L - INSET - WALL / 2, visR = CUP_R + INSET + WALL / 2;
     ctx.beginPath();
-    ctx.moveTo(CUP_L - WALL / 2, CUP_TOP);
-    ctx.lineTo(CUP_L - WALL / 2, FLOOR_Y - 6);
-    ctx.lineTo(CUP_R + WALL / 2, FLOOR_Y - 6);
-    ctx.lineTo(CUP_R + WALL / 2, CUP_TOP);
+    ctx.moveTo(visL, CUP_TOP);
+    ctx.lineTo(visL, FLOOR_Y - 6);
+    ctx.lineTo(visR, FLOOR_Y - 6);
+    ctx.lineTo(visR, CUP_TOP);
     ctx.stroke();
     // 縁の飾り
     ctx.fillStyle = "#5b5480";
-    for (const x of [CUP_L - WALL / 2, CUP_R + WALL / 2]) {
+    for (const x of [visL, visR]) {
       ctx.beginPath();
       ctx.arc(x, CUP_TOP, WALL * 0.85, 0, Math.PI * 2);
       ctx.fill();
