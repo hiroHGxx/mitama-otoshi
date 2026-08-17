@@ -143,15 +143,22 @@
   }
 
   // ---- 合体 ----
-  Events.on(engine, "collisionStart", (ev) => {
+  // 連鎖を一瞬ずつ見せるため、合体直後の玉は MERGE_LOCK_MS の間は次の合体をしない。
+  // ロック中に接触したペアも拾えるよう collisionActive（接触継続）でも判定する。
+  const MERGE_LOCK_MS = 230;
+  function tryMerge(ev) {
+    const now = performance.now();
     for (const pair of ev.pairs) {
       const a = pair.bodyA, b = pair.bodyB;
       if (a.tier === undefined || b.tier === undefined) continue;
       if (a.tier !== b.tier || a.merging || b.merging) continue;
+      if (now < (a.mergeLockUntil || 0) || now < (b.mergeLockUntil || 0)) continue;
       a.merging = b.merging = true;
       mergeQueue.push([a, b]);
     }
-  });
+  }
+  Events.on(engine, "collisionStart", tryMerge);
+  Events.on(engine, "collisionActive", tryMerge);
 
   Events.on(engine, "afterUpdate", () => {
     while (mergeQueue.length) {
@@ -168,7 +175,8 @@
         burst(mx, my, "#f2d98c", 40);
       } else {
         const nt = tier + 1;
-        spawnBody(nt, mx, my);
+        const nb = spawnBody(nt, mx, my);
+        nb.mergeLockUntil = performance.now() + MERGE_LOCK_MS;
         score += POINTS[nt];
         maxTier = Math.max(maxTier, nt);
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
@@ -263,20 +271,35 @@
 
   // ---- 描画 ----
   function drawMoon() {
-    // 最大到達段位に応じて月が満ちる
+    // 到達した最高段位に応じて、新月 → 三日月 → 半月 → 満月と満ちていく
     const cx = W / 2, cy = 250, R = 140;
-    const phase = maxTier / (TIERS.length - 1); // 0..1
+    const f = maxTier / (TIERS.length - 1); // 0..1
     ctx.save();
-    ctx.globalAlpha = 0.16;
+
+    // 影の月（輪郭がうっすら見える下地）
+    ctx.globalAlpha = 0.07;
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.fillStyle = "#f2d98c";
     ctx.fill();
-    if (phase < 1) {
-      // 影で欠けを表現
-      ctx.globalCompositeOperation = "destination-out";
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#f2d98c";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 満ちた部分（右側から満ちる）
+    if (f > 0) {
+      ctx.globalAlpha = 0.32;
+      if (f >= 1) {
+        ctx.shadowColor = "#f2d98c";
+        ctx.shadowBlur = 40;
+      }
       ctx.beginPath();
-      ctx.arc(cx - R * 1.6 * phase + R * 0.6, cy, R * 0.98, 0, Math.PI * 2);
+      ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI / 2); // 右の縁
+      const rx = R * Math.abs(2 * f - 1);
+      // f<0.5: 明暗の境界が右寄りに湾曲 / f>0.5: 左寄りに湾曲
+      ctx.ellipse(cx, cy, rx, R, 0, Math.PI / 2, -Math.PI / 2, f <= 0.5);
+      ctx.fillStyle = "#f2d98c";
       ctx.fill();
     }
     ctx.restore();
@@ -304,11 +327,19 @@
     ctx.restore();
   }
 
-  function drawBall(x, y, angle, tier, ghost) {
+  function drawBall(x, y, angle, tier, ghost, born) {
     const t = TIERS[tier];
     ctx.save();
     ctx.translate(x, y);
     if (ghost) ctx.globalAlpha = 0.85;
+    // 生まれた瞬間にぽんっと膨らむ（連鎖の各段が目で追える）
+    if (born) {
+      const p = Math.min(1, (performance.now() - born) / 200);
+      if (p < 1) {
+        const s = 0.55 + 0.45 * p + 0.1 * Math.sin(p * Math.PI);
+        ctx.scale(s, s);
+      }
+    }
     // 本体
     ctx.beginPath();
     ctx.arc(0, 0, t.r, 0, Math.PI * 2);
@@ -392,7 +423,7 @@
     // 落下済みの御霊
     for (const b of Composite.allBodies(world)) {
       if (b.tier === undefined) continue;
-      drawBall(b.position.x, b.position.y, b.angle, b.tier, false);
+      drawBall(b.position.x, b.position.y, b.angle, b.tier, false, b.bornAt);
     }
 
     // 粒子
