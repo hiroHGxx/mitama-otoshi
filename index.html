@@ -37,14 +37,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 10px 16px 6px;
+    gap: 8px;
+    padding: 10px 12px 6px;
   }
   h1 {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 800;
-    letter-spacing: .18em;
+    letter-spacing: .14em;
     color: var(--moon);
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
   }
   h1 small {
     display: block;
@@ -53,15 +56,15 @@
     letter-spacing: .22em;
     color: var(--ink-dim);
   }
-  .stats { display: flex; align-items: center; gap: 14px; }
+  .stats { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .stat { text-align: right; }
   .stat .label {
     font-size: 9px;
-    letter-spacing: .25em;
+    letter-spacing: .2em;
     color: var(--ink-dim);
   }
   .stat .value {
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--ink);
@@ -109,6 +112,19 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    max-width: min(92vw, 420px);
+    box-sizing: border-box;
+  }
+  @media (max-width: 430px) {
+    h1 { font-size: 14px; letter-spacing: .08em; }
+    h1 small { font-size: 8px; letter-spacing: .12em; }
+    .stats { gap: 8px; }
+    .stat .value { font-size: 17px; }
+    #next-face { width: 32px; height: 32px; }
+    #mute { width: 30px; height: 30px; font-size: 14px; }
+    .card { padding: 26px 22px; }
+    .howto { font-size: 12px; }
+    .game-title { font-size: 28px; }
   }
   .card .title {
     font-size: 22px;
@@ -140,6 +156,79 @@
     cursor: pointer;
   }
   #retry:focus-visible { outline: 3px solid var(--sakura); outline-offset: 2px; }
+  #mute {
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    color: var(--moon);
+    cursor: pointer;
+  }
+  #mute.off { color: var(--ink-dim); text-decoration: line-through; }
+  #mute:focus-visible { outline: 2px solid var(--sakura); outline-offset: 2px; }
+  #ladder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 8px 2px;
+  }
+  #ladder img, #ladder .moon-tier {
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    background: #fdfbf6;
+    display: block;
+  }
+  #ladder .moon-tier {
+    background: radial-gradient(circle at 35% 35%, #fff3c8, #e8c96a);
+  }
+  #ladder .sep { color: var(--ink-dim); font-size: 9px; }
+  #title-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 24, .82);
+    z-index: 20;
+  }
+  #title-overlay.hidden { display: none; }
+  .game-title {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: .3em;
+    color: var(--moon);
+    text-wrap: balance;
+  }
+  .game-sub { font-size: 10px; letter-spacing: .15em; color: var(--ink-dim); margin-top: -6px; }
+  .howto {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    text-align: left;
+  }
+  .howto li::before { content: "〇 "; color: var(--sakura); }
+  #start {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .25em;
+    color: var(--night);
+    background: var(--moon);
+    border: none;
+    border-radius: 6px;
+    padding: 14px 30px;
+    cursor: pointer;
+  }
+  #start:focus-visible { outline: 3px solid var(--sakura); outline-offset: 2px; }
   footer {
     width: 100%;
     text-align: center;
@@ -167,12 +256,28 @@
       <div class="label">NEXT</div>
       <img id="next-face" alt="次の御霊">
     </div>
+    <button id="mute" aria-label="音の切り替え">♪</button>
   </div>
 </header>
 <main>
   <canvas id="game"></canvas>
 </main>
+<div id="ladder" aria-label="浄化の順"></div>
 <footer>『月蝕綺譚 -Luna Occulta-』二次創作（非公式ファンゲーム）／ © Studio VIBE のガイドラインに基づく</footer>
+
+<div id="title-overlay">
+  <div class="card">
+    <div class="game-title">御霊おとし</div>
+    <div class="game-sub">— 月蝕綺譚 -Luna Occulta- 二次創作 —</div>
+    <ul class="howto">
+      <li>なぞって狙い、離して落とす</li>
+      <li>同じ御霊が触れると浄化され、次の御霊へ</li>
+      <li>御霊を重ね、喰われた月を満たそう</li>
+      <li>壺からあふれたら、夜明け</li>
+    </ul>
+    <button id="start">月夜に入る</button>
+  </div>
+</div>
 
 <div id="overlay">
   <div class="card">
@@ -188,6 +293,7 @@
 </div>
 
 <script src="vendor/matter.min.js"></script>
+<script src="src/bgm.js"></script>
 <script src="src/faces.js"></script>
 <script src="src/game.js"></script>
 </body>
