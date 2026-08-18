@@ -440,6 +440,18 @@
   });
   canvas.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
+  // iOS Safari 対策: viewport の user-scalable=no を無視して
+  // ダブルタップズーム／ピンチズームが発動するため、JSで直接抑止する
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 350 && !e.target.closest("button")) {
+      e.preventDefault(); // 連打をダブルタップズームにさせない
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener("gesturestart", (e) => e.preventDefault()); // ピンチズーム抑止
+
   document.getElementById("retry").addEventListener("click", restart);
 
   function restart() {
