@@ -636,14 +636,18 @@
     });
   }
 
-  // ---- タイトル画面 ----
-  document.getElementById("start").addEventListener("click", () => {
+  // ---- タイトル画面（音あり／音なしの2つの入口） ----
+  function enterNight(withSound) {
+    soundOn = withSound;
+    try { localStorage.setItem("mitama_sound", soundOn ? "on" : "off"); } catch (e) {}
     started = true;
     document.getElementById("title-overlay").classList.add("hidden");
     initAudio();
     applySound();
     fitCanvas();
-  });
+  }
+  document.getElementById("start").addEventListener("click", () => enterNight(true));
+  document.getElementById("start-silent").addEventListener("click", () => enterNight(false));
   applySound(); // 音ボタンの初期表示
 
   // ---- 自動テスト（#autotest 付きで開くと自動で落とし続ける） ----

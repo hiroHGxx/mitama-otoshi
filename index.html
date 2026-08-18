@@ -238,6 +238,19 @@
     cursor: pointer;
   }
   #start:focus-visible { outline: 3px solid var(--sakura); outline-offset: 2px; }
+  .sound-note { font-size: 10px; letter-spacing: .1em; color: var(--ink-dim); margin-top: -6px; }
+  #start-silent {
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: .15em;
+    color: var(--ink-dim);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 9px 18px;
+    cursor: pointer;
+  }
+  #start-silent:focus-visible { outline: 2px solid var(--sakura); outline-offset: 2px; }
   footer {
     width: 100%;
     text-align: center;
@@ -285,6 +298,8 @@
       <li>壺からあふれたら、夜明け</li>
     </ul>
     <button id="start">月夜に入る</button>
+    <div class="sound-note">※ 音が鳴ります（イヤホン推奨）</div>
+    <button id="start-silent">静かに入る — 音なし</button>
   </div>
 </div>
 
