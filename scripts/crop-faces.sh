@@ -1,19 +1,20 @@
 #!/bin/bash
 # 正典ちびシートから顔アイコンを切り出す。
 # キャラごとに「クロップサイズ / Yオフセット / Xオフセット」を補正済み。
-# 基準: 顔の中心線（鼻筋）が円の中心・目の高さが中心のやや上（48%）に来ること
+# 基準: 目の中間点がクロップの (50%, 48%) に来ること（codex視覚測定×3回で校正）。
+# 顔がシート下端に近いキャラ（anne/nekomata/sakuya）はクロップを小さくして対応
 cd "$(dirname "$0")/.."
 crop() { # name size offY offX
   sips -c $2 $2 --cropOffset $3 $4 assets/sheets/$1.png --out assets/faces/$1.png >/dev/null 2>&1
   sips -z 160 160 assets/faces/$1.png >/dev/null 2>&1
 }
-crop nemu     360 620 122
-crop oto      360 660 148
-crop anne     360 648 133
-crop nekomata 260 482 55
-crop benten   320 663 27
-crop uka      360 650 150
-crop izuna    360 656 147
-crop shion    340 647 90
-crop sakuya   360 646 124
+crop nemu     360 630 114
+crop oto      360 637 119
+crop anne     320 693 149
+crop nekomata 240 526 66
+crop benten   320 668 47
+crop uka      360 648 117
+crop izuna    360 658 175
+crop shion    340 680 63
+crop sakuya   260 760 147
 echo "faces cropped"
