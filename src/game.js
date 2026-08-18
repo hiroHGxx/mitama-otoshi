@@ -251,6 +251,18 @@
       else bgm.pause();
     }
   }
+  // ホーム画面に戻る・別タブに移るなど、画面が見えなくなったら音を止める
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      bgm.pause();
+      if (audioCtx) audioCtx.suspend();
+    } else {
+      if (started && soundOn) bgm.play().catch(() => {});
+      if (audioCtx) audioCtx.resume();
+    }
+  });
+  addEventListener("pagehide", () => bgm.pause()); // iOS Safari の保険
+
   document.getElementById("mute").addEventListener("click", () => {
     soundOn = !soundOn;
     try { localStorage.setItem("mitama_sound", soundOn ? "on" : "off"); } catch (e) {}
