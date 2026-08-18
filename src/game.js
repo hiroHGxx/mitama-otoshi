@@ -92,6 +92,9 @@
   ]);
 
   // ---- 状態 ----
+  let started = false;       // タイトル画面の「月夜に入る」を押すまで false
+  let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
+  let flashColor = "#f2d98c";
   let score = 0;
   let best = 0;
   try { best = +(localStorage.getItem("mitama_best") || 0); } catch (e) {}
@@ -131,8 +134,66 @@
     return b;
   }
 
+  // ---- 音（効果音は WebAudio 生成・BGM は公式メインテーマ） ----
+  let audioCtx = null;
+  let soundOn = true;
+  try { soundOn = localStorage.getItem("mitama_sound") !== "off"; } catch (e) {}
+  const bgm = new Audio(BGM_DATA);
+  bgm.loop = true;
+  bgm.volume = 0.3;
+
+  function initAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+  }
+  function tone(freq, dur, type, gain, delay) {
+    if (!audioCtx || !soundOn) return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(gain || 0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t + dur);
+  }
+  const sfxDrop = () => tone(200, 0.07, "triangle", 0.07);
+  const sfxMerge = (tier) => {
+    const f = 320 * Math.pow(1.11, tier);
+    tone(f, 0.12, "sine", 0.16);
+    tone(f * 1.5, 0.2, "sine", 0.1, 0.07);
+  };
+  const sfxMoon = () => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.5, "sine", 0.14, i * 0.12));
+    tone(131, 1.0, "sine", 0.18);
+  };
+  const sfxEclipse = () => {
+    tone(98, 0.8, "sawtooth", 0.1);
+    tone(65, 1.4, "sine", 0.2, 0.1);
+  };
+
+  function applySound() {
+    const btn = document.getElementById("mute");
+    btn.classList.toggle("off", !soundOn);
+    btn.textContent = soundOn ? "♪" : "♪";
+    if (started) {
+      if (soundOn) bgm.play().catch(() => {});
+      else bgm.pause();
+    }
+  }
+  document.getElementById("mute").addEventListener("click", () => {
+    soundOn = !soundOn;
+    try { localStorage.setItem("mitama_sound", soundOn ? "on" : "off"); } catch (e) {}
+    applySound();
+  });
+
   function drop() {
-    if (!canDrop || gameOver) return;
+    if (!canDrop || gameOver || !started) return;
+    sfxDrop();
     const t = TIERS[currentTier];
     const x = Math.max(CUP_L + t.r + 2, Math.min(CUP_R - t.r - 2, aimX));
     spawnBody(currentTier, x, DROP_Y);
@@ -171,8 +232,11 @@
       if (tier === TIERS.length - 1) {
         // 満月 ×2 → 皆既月蝕
         score += 100;
-        addFloater(mx, my, "皆既月蝕 +100", "#f2d98c");
-        burst(mx, my, "#f2d98c", 40);
+        addFloater(mx, my, "皆既月蝕 +100", "#e5647a");
+        burst(mx, my, "#e5647a", 50);
+        sfxEclipse();
+        flashUntil = performance.now() + 1400;
+        flashColor = "#8a1f3d";
       } else {
         const nt = tier + 1;
         const nb = spawnBody(nt, mx, my);
@@ -181,6 +245,15 @@
         maxTier = Math.max(maxTier, nt);
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
         burst(mx, my, TIERS[nt].color, 14);
+        sfxMerge(nt);
+        if (nt === TIERS.length - 1) {
+          // 満月成就の見せ場
+          addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#f2d98c");
+          burst(mx, my, "#f2d98c", 40);
+          sfxMoon();
+          flashUntil = performance.now() + 1400;
+          flashColor = "#f2d98c";
+        }
       }
       updateHud();
     }
@@ -451,6 +524,15 @@
       ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
+
+    // 満月成就・皆既月蝕のフラッシュ
+    if (now < flashUntil) {
+      const p = (flashUntil - now) / 1400;
+      ctx.globalAlpha = 0.35 * p;
+      ctx.fillStyle = flashColor;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ---- 次の御霊プレビュー（DOM） ----
@@ -461,8 +543,47 @@
     nextEl.src = FACE_DATA[t.key];
   }
 
+  // ---- 進化の階梯（画面下の一覧） ----
+  {
+    const ladder = document.getElementById("ladder");
+    TIERS.forEach((t, i) => {
+      if (i > 0) {
+        const s = document.createElement("span");
+        s.className = "sep";
+        s.textContent = "▸";
+        ladder.appendChild(s);
+      }
+      const size = Math.round(16 + i * 1.6);
+      let el;
+      if (t.key) {
+        el = document.createElement("img");
+        el.src = FACE_DATA[t.key];
+        el.alt = t.name;
+      } else {
+        el = document.createElement("span");
+        el.className = "moon-tier";
+        el.title = t.name;
+      }
+      el.style.width = el.style.height = size + "px";
+      el.style.borderColor = t.color;
+      ladder.appendChild(el);
+    });
+  }
+
+  // ---- タイトル画面 ----
+  document.getElementById("start").addEventListener("click", () => {
+    started = true;
+    document.getElementById("title-overlay").classList.add("hidden");
+    initAudio();
+    applySound();
+    fitCanvas();
+  });
+  applySound(); // 音ボタンの初期表示
+
   // ---- 自動テスト（#autotest 付きで開くと自動で落とし続ける） ----
   if (location.hash === "#autotest") {
+    started = true;
+    document.getElementById("title-overlay").classList.add("hidden");
     setInterval(() => {
       aimX = CUP_L + 40 + Math.random() * (CUP_R - CUP_L - 80);
       drop();
