@@ -53,7 +53,10 @@
     font-size: 16px;
     font-weight: 800;
     letter-spacing: .14em;
-    color: var(--moon);
+    background: linear-gradient(160deg, #f6e5ae 20%, #d9b45a 55%, #f2d98c 80%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
     white-space: nowrap;
     flex-shrink: 1;
     min-width: 0;
@@ -63,9 +66,22 @@
     font-size: 9px;
     font-weight: 500;
     letter-spacing: .22em;
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
     color: var(--ink-dim);
   }
-  .stats { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    background: linear-gradient(170deg, rgba(28, 24, 54, .85), rgba(19, 16, 38, .9));
+    border: 1px solid #6d5a33;
+    box-shadow: 0 0 0 1px rgba(184, 155, 90, .25) inset;
+    border-radius: 8px;
+    padding: 5px 10px;
+  }
   .stat { text-align: right; }
   .stat .label {
     font-size: 9px;
@@ -113,8 +129,9 @@
   }
   #overlay.show { display: flex; }
   .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
+    background: linear-gradient(170deg, rgba(28, 24, 54, .93), rgba(19, 16, 38, .95));
+    border: 1px solid #b89b5a;
+    box-shadow: 0 0 0 3px rgba(19, 16, 38, .9), 0 0 0 4px #6d5a33, 0 14px 50px rgba(0, 0, 0, .65);
     border-radius: 10px;
     padding: 32px 40px;
     text-align: center;
@@ -123,6 +140,131 @@
     gap: 14px;
     max-width: min(92vw, 420px);
     box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+  }
+  #final-fuda {
+    display: none;
+    width: 152px;
+    border-radius: 8px;
+    border: 2px solid #b89b5a;
+    margin: 0 auto;
+  }
+  /* 満月成就カットイン（必殺アニメが帯の上をシュッと横切る） */
+  #cutin {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  #cutin.show { display: flex; }
+  #cutin::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 26vh;
+    height: 48vh;
+    background: linear-gradient(90deg, rgba(10, 10, 24, 0), rgba(10, 10, 24, .88) 10%, rgba(10, 10, 24, .88) 90%, rgba(10, 10, 24, 0));
+    animation: band-fade 1.7s ease forwards;
+  }
+  #cutin img {
+    position: relative;
+    width: min(94vw, 620px);
+    max-height: 46vh;
+    object-fit: contain;
+    filter: drop-shadow(0 0 44px rgba(242, 217, 140, .45));
+    animation: cutin-slide 1.7s cubic-bezier(.2, .8, .25, 1) forwards;
+  }
+  @keyframes cutin-slide {
+    0%   { transform: translateX(125%) rotate(-2deg); }
+    13%  { transform: translateX(0) rotate(-2deg); }
+    80%  { transform: translateX(-3%) rotate(-2deg); }
+    100% { transform: translateX(-140%) rotate(-2deg); }
+  }
+  @keyframes band-fade { 0% { opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+  /* 皆既月蝕（深紅の帳＋筆文字） */
+  #eclipse {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 16vh;
+    z-index: 15;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 42%, rgba(90, 12, 34, .30), rgba(18, 4, 10, .78));
+  }
+  #eclipse.show { display: flex; }
+  /* 血月の一枚絵（AI生成）: 暗転 → パンチイン → 火の粉 */
+  #eclipse .e-dark {
+    position: absolute;
+    inset: 0;
+    background: #060409;
+    opacity: 0;
+    animation: e-dark 2.4s ease forwards;
+  }
+  @keyframes e-dark { 0% { opacity: 0; } 9% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
+  #eclipse .e-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    animation: e-art-punch 2.15s cubic-bezier(.16, .9, .3, 1) .25s forwards;
+  }
+  @keyframes e-art-punch {
+    0%   { transform: scale(1.16); opacity: 0; }
+    9%   { transform: scale(1.0); opacity: 1; }
+    86%  { transform: scale(1.03); opacity: 1; }
+    100% { transform: scale(1.035); opacity: 0; }
+  }
+  #eclipse .e-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 30%, rgba(229, 100, 122, .55), transparent 60%);
+    opacity: 0;
+    animation: e-flash 2.4s ease .25s forwards;
+  }
+  @keyframes e-flash { 0% { opacity: 0; } 6% { opacity: 1; } 30% { opacity: 0; } 100% { opacity: 0; } }
+  .e-embers { position: absolute; inset: 0; overflow: hidden; }
+  .e-embers span {
+    position: absolute;
+    bottom: -4vh;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffe9a8, #e8a04c);
+    opacity: 0;
+    animation: ember-rise var(--dur, 2s) ease-out var(--delay, .4s) forwards;
+  }
+  @keyframes ember-rise {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    12%  { opacity: .95; }
+    100% { transform: translateY(-72vh) translateX(var(--sway, 20px)); opacity: 0; }
+  }
+  /* 発動時の画面の揺れ */
+  main.shake { animation: shake .5s ease; }
+  @keyframes shake {
+    12% { transform: translate(4px, -3px); }
+    30% { transform: translate(-4px, 3px); }
+    48% { transform: translate(3px, 2px); }
+    66% { transform: translate(-2px, -2px); }
+    84% { transform: translate(1px, 1px); }
+  }
+  @keyframes e-zoom {
+    0%   { transform: scale(1.24); opacity: 0; }
+    18%  { transform: scale(1); opacity: 1; }
+    78%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #cutin.show::before, #cutin img, #eclipse .e-dark, #eclipse .e-art, #eclipse .e-flash, .e-embers span, #eclipse .e-text, main.shake { animation: none; }
   }
   @media (max-width: 430px) {
     h1 { font-size: 14px; letter-spacing: .08em; }
@@ -202,10 +344,47 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 10, 24, .82);
+    background-color: #12122a;
+    overflow: hidden;
     z-index: 20;
   }
+  /* オープニング: 札絵をゆっくり寄りで見せる */
+  #title-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center top;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  #title-overlay.art-in #title-bg { opacity: 1; animation: bg-zoom 9s ease-out forwards; }
+  @keyframes bg-zoom { from { transform: scale(1.06); } to { transform: scale(1); } }
+  /* 夜の帳: オープニング中は薄く、カード表示で濃くなる */
+  #title-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(10, 10, 24, .30) 0%, rgba(10, 10, 24, .72) 55%, rgba(10, 10, 24, .90) 100%);
+    opacity: 0;
+    transition: opacity .9s ease;
+  }
+  #title-overlay.ready::before { opacity: 1; }
+  /* カードは少し遅れてふわっと */
+  #title-overlay .card {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity .8s ease, transform .8s ease;
+    pointer-events: none;
+  }
+  #title-overlay.ready .card {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
   #title-overlay.hidden { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    #title-overlay.art-in #title-bg { animation: none; }
+  }
   .game-title {
     font-size: 34px;
     font-weight: 800;
@@ -288,6 +467,7 @@
 <footer>『月蝕綺譚 -Luna Occulta-』二次創作（非公式ファンゲーム）／ © Studio VIBE のガイドラインに基づく</footer>
 
 <div id="title-overlay">
+  <div id="title-bg"></div>
   <div class="card">
     <div class="game-title">御霊おとし</div>
     <div class="game-sub">— 月蝕綺譚 -Luna Occulta- 二次創作 —</div>
@@ -307,6 +487,7 @@
   <div class="card">
     <div class="title">夜が明けた</div>
     <div class="sub">壺から御霊があふれてしまった</div>
+    <img id="final-fuda" alt="到達した御霊の札絵">
     <div>
       <div class="score-label">SCORE</div>
       <div id="final-score">0</div>
@@ -316,8 +497,12 @@
   </div>
 </div>
 
+<div id="cutin"><img id="cutin-img" alt="満月成就"></div>
+<div id="eclipse"><div class="e-dark"></div><img class="e-art" id="eclipse-img" alt=""><div class="e-flash"></div><div class="e-embers" id="e-embers"></div><div class="e-text">皆既月蝕</div></div>
+
 <script src="vendor/matter.min.js"></script>
 <script src="src/bgm.js"></script>
+<script src="src/art.js"></script>
 <script src="src/faces.js"></script>
 <script src="src/game.js"></script>
 </body>
