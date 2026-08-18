@@ -16,5 +16,5 @@ crop benten   320 668 47
 crop uka      360 648 117
 crop izuna    360 658 175
 crop shion    340 680 63
-crop sakuya   260 760 147
+crop sakuya   340 79 50   # 下段の顔は下端に近すぎるため上段立ち絵の頭部を使用
 echo "faces cropped"
