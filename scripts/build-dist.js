@@ -20,12 +20,12 @@ function inlineScripts(html) {
 const pages = inlineScripts(src);
 fs.writeFileSync(path.join(root, "index.html"), pages);
 
-// Artifact 用（BGMを data URI 化 + 外殻タグ除去）
-const bgmB64 = fs.readFileSync(path.join(root, "assets/audio/kitan_maintheme.m4a")).toString("base64");
-let art = pages.replace(
-  'const BGM_DATA = "assets/audio/kitan_maintheme.m4a";',
-  'const BGM_DATA = "data:audio/mp4;base64,' + bgmB64 + '";'
-);
+// Artifact 用（BGM・札絵を data URI 化 + 外殻タグ除去）
+const MIME = { m4a: "audio/mp4", webp: "image/webp", png: "image/png", jpg: "image/jpeg" };
+let art = pages.replace(/assets\/(?:audio|art)\/[\w.-]+\.(m4a|webp|png|jpg)/g, (ref, ext) => {
+  const b64 = fs.readFileSync(path.join(root, ref)).toString("base64");
+  return "data:" + MIME[ext] + ";base64," + b64;
+});
 const head = art.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<meta[^>]*>\s*/g, "")
   .replace(/<title>[\s\S]*?<\/title>\s*/, "");

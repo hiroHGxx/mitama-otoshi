@@ -16,8 +16,8 @@
     { name: "宇迦",   key: "uka",    r: 58,  color: "#f08c5a" },
     { name: "イズナ", key: "izuna",  r: 70,  color: "#d9c86a" },
     { name: "紫苑",   key: "shion",  r: 84,  color: "#9a7fd1" },
-    { name: "咲耶",   key: "sakuya", r: 100, color: "#f06292" },
-    { name: "満月",   key: null,     r: 120, color: "#f2d98c" },
+    { name: "咲耶",   key: "sakuya", r: 90,  color: "#f06292" },
+    { name: "満月",   key: null,     r: 106, color: "#f2d98c" },
   ];
   const POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55];
   const SPAWN_WEIGHTS = [30, 25, 20, 15, 10]; // tier 0-4
@@ -54,6 +54,10 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitCanvas);
   fitCanvas();
 
+  // ---- 盤面背景（ゲーム開始後に読み込み、それまでは無地グラデ） ----
+  const boardBg = new Image();
+  function loadBoardBg() { if (!boardBg.src) boardBg.src = BOARD_BG; }
+
   // ---- 顔画像 ----
   const faces = {};
   let facesReady = false;
@@ -78,8 +82,8 @@
   // 見た目の壺: 壁の線は x=42..56 / 底の線は y=691..705 に描かれる。
   // 物理の内面はそれに 2px の余白を足して合わせ、めり込んで見えないようにする。
   const INSET = 2;
-  const CUP_L = 42 + WALL + INSET;      // 物理の内側（左）
-  const CUP_R = W - 42 - WALL - INSET;  // 物理の内側（右）
+  const CUP_L = 30 + WALL + INSET;      // 物理の内側（左）
+  const CUP_R = W - 30 - WALL - INSET;  // 物理の内側（右）
   const PHYS_FLOOR_TOP = FLOOR_Y - 13;  // 描画の底の上面に一致
 
   // 壁は摩擦を低くして、触れた玉が引っかからず滑り落ちるようにする
@@ -93,6 +97,9 @@
 
   // ---- 状態 ----
   let started = false;       // タイトル画面の「月夜に入る」を押すまで false
+  let pausedUntil = 0;       // カットイン等の演出中は物理を止める
+  const pendingEclipses = []; // 皆既月蝕: 月×2を触れ合ったまま見せてから消す
+  const pendingPurges = [];   // 月光の浄化: 満月誕生時に小さな御霊を消す
   let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
   let flashColor = "#f2d98c";
   let score = 0;
@@ -108,6 +115,8 @@
   const mergeQueue = [];
   const particles = [];
   const floaters = [];
+  const petals = [];       // 舞い散る桜の花びら（環境演出）
+  let lastPetalAt = 0;
 
   function pickTier() {
     const total = SPAWN_WEIGHTS.reduce((a, b) => a + b, 0);
@@ -230,16 +239,69 @@
     playBuffer(pluckBuffer(scaleFreq(tier + 2)), 0.5, 0.06);
   };
   const sfxMoon = () => {
-    // 琴のかき鳴らし＋お寺の鐘（不協和な倍音で金属感）
+    // 琴のかき鳴らし＋高音のきらめき（太鼓・鐘は皆既月蝕専用にする）
     if (!audioCtx) return;
     [0, 2, 4, 5, 7].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s + 5)), 0.7, i * 0.09));
-    [110, 277, 484, 792].forEach((f, i) => toll(f, 2.2 - i * 0.3, 0.22 - i * 0.04, 0.35));
+    [0, 2, 4].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s + 10)), 0.4, 0.55 + i * 0.12));
   };
+  // 風のうねり: ノイズをバンドパスに通して持ち上げる
+  function windRise(dur, delay) {
+    if (!audioCtx || !soundOn) return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const sr = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, Math.floor(sr * dur), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(320, t);
+    bp.frequency.exponentialRampToValueAtTime(2200, t + dur);
+    const g2 = audioCtx.createGain();
+    g2.gain.setValueAtTime(0.001, t);
+    g2.gain.exponentialRampToValueAtTime(0.3, t + dur * 0.7);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bp).connect(g2).connect(sfxBus);
+    src.start(t);
+  }
+  // 太鼓: 低い胴鳴り＋皮を打つ短いノイズ
+  function taiko(delay, gain) {
+    if (!audioCtx || !soundOn) return;
+    toll(68, 0.5, gain || 0.55, delay, 40);        // 胴の重低音
+    toll(165, 0.32, (gain || 0.55) * 0.7, delay, 95); // 面の音（スマホ可聴域）
+    const t = audioCtx.currentTime + (delay || 0);
+    const sr = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, Math.floor(sr * 0.1), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.5);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 240;
+    const g2 = audioCtx.createGain();
+    g2.gain.value = 0.5;
+    src.connect(lp).connect(g2).connect(sfxBus);
+    src.start(t);
+  }
   const sfxEclipse = () => {
-    // 大太鼓の轟き＋低い鐘
-    toll(90, 1.3, 0.5, 0, 45);
-    toll(55, 1.8, 0.35, 0.08);
-    woodblock(0.02);
+    // 琴ベースで再構成（オシレータの重低音はスマホで鳴らないため、
+    // 倍音の豊かな弦の音だけで組む）
+    if (!audioCtx) return;
+    // 柝（き）: 歌舞伎の「チョン、チョン」
+    woodblock(0);
+    woodblock(0.18);
+    // 不穏な下降フレーズ
+    [9, 7, 5, 4, 2].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s)), 0.8, 0.4 + i * 0.11));
+    // 重い低弦の二連（オクターブ重ねで太さを出す）
+    playBuffer(pluckBuffer(scaleFreq(0)), 1.0, 1.05);
+    playBuffer(pluckBuffer(scaleFreq(0) / 2), 1.0, 1.07);
+    playBuffer(pluckBuffer(scaleFreq(1)), 0.95, 1.45);
+    playBuffer(pluckBuffer(scaleFreq(1) / 2), 0.95, 1.47);
+    // 締めの一撃（高音）
+    playBuffer(pluckBuffer(scaleFreq(10)), 0.7, 1.85);
   };
 
   function applySound() {
@@ -271,6 +333,7 @@
 
   function drop() {
     if (!canDrop || gameOver || !started) return;
+    if (performance.now() < pausedUntil) return; // 演出中は落とせない
     sfxDrop();
     const t = TIERS[currentTier];
     const x = Math.max(CUP_L + t.r + 2, Math.min(CUP_R - t.r - 2, aimX));
@@ -305,17 +368,16 @@
       const mx = (a.position.x + b.position.x) / 2;
       const my = (a.position.y + b.position.y) / 2;
       const tier = a.tier;
+      if (tier === TIERS.length - 1) {
+        // 満月 ×2 → 皆既月蝕: 触れ合ったまま画面を止めて見せ、演出後に消す
+        pendingEclipses.push({ a, b, mx, my, at: performance.now() + 1500 });
+        showEclipse();
+        sfxEclipse();
+        continue;
+      }
       World.remove(world, a);
       World.remove(world, b);
-      if (tier === TIERS.length - 1) {
-        // 満月 ×2 → 皆既月蝕
-        score += 100;
-        addFloater(mx, my, "皆既月蝕 +100", "#e5647a");
-        burst(mx, my, "#e5647a", 50);
-        sfxEclipse();
-        flashUntil = performance.now() + 1400;
-        flashColor = "#8a1f3d";
-      } else {
+      {
         const nt = tier + 1;
         const nb = spawnBody(nt, mx, my);
         nb.mergeLockUntil = performance.now() + MERGE_LOCK_MS;
@@ -328,7 +390,14 @@
           // 満月成就の見せ場
           addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#f2d98c");
           burst(mx, my, "#f2d98c", 40);
+          showCutin();
           sfxMoon();
+          // 月光の浄化: 三段目までの小さな御霊を最大4体、カットイン中に消す
+          const smalls = Composite.allBodies(world)
+            .filter(o => o.tier !== undefined && o.tier <= 2 && !o.merging)
+            .slice(0, 4);
+          for (const o of smalls) o.merging = true;
+          if (smalls.length) pendingPurges.push({ bodies: smalls, at: performance.now() + 900 });
           flashUntil = performance.now() + 1400;
           flashColor = "#f2d98c";
         }
@@ -409,6 +478,10 @@
     try { localStorage.setItem("mitama_best", best); } catch (e) {}
     document.getElementById("final-score").textContent = score;
     document.getElementById("final-tier").textContent = "頂：" + TIERS[maxTier].name;
+    const fudaKey = TIERS[maxTier].key || "sakuya"; // 満月到達時は咲耶の札
+    const fudaEl = document.getElementById("final-fuda");
+    fudaEl.src = FUDA_ART[fudaKey];
+    fudaEl.style.display = "block";
     document.getElementById("overlay").classList.add("show");
     updateHud();
   }
@@ -458,19 +531,36 @@
 
   function drawVessel() {
     ctx.save();
-    ctx.strokeStyle = "#4a4468";
+    const visL = CUP_L - INSET - WALL / 2, visR = CUP_R + INSET + WALL / 2;
+    // 漆塗りの胴（上から下へ沈む色）
+    const wg = ctx.createLinearGradient(0, CUP_TOP, 0, FLOOR_Y);
+    wg.addColorStop(0, "#5b5480");
+    wg.addColorStop(0.5, "#443d64");
+    wg.addColorStop(1, "#352e50");
+    ctx.strokeStyle = wg;
     ctx.lineWidth = WALL;
     ctx.lineCap = "round";
-    const visL = CUP_L - INSET - WALL / 2, visR = CUP_R + INSET + WALL / 2;
     ctx.beginPath();
     ctx.moveTo(visL, CUP_TOP);
     ctx.lineTo(visL, FLOOR_Y - 6);
     ctx.lineTo(visR, FLOOR_Y - 6);
     ctx.lineTo(visR, CUP_TOP);
     ctx.stroke();
-    // 縁の飾り
-    ctx.fillStyle = "#5b5480";
+    // 金の稜線（内側のエッジ）
+    ctx.strokeStyle = "rgba(184, 155, 90, .45)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(CUP_L, CUP_TOP);
+    ctx.lineTo(CUP_L, FLOOR_Y - 13);
+    ctx.lineTo(CUP_R, FLOOR_Y - 13);
+    ctx.lineTo(CUP_R, CUP_TOP);
+    ctx.stroke();
+    // 縁の珠は金の玉に
     for (const x of [visL, visR]) {
+      const kg = ctx.createRadialGradient(x - 3, CUP_TOP - 3, 2, x, CUP_TOP, WALL);
+      kg.addColorStop(0, "#f2d98c");
+      kg.addColorStop(1, "#8a744a");
+      ctx.fillStyle = kg;
       ctx.beginPath();
       ctx.arc(x, CUP_TOP, WALL * 0.85, 0, Math.PI * 2);
       ctx.fill();
@@ -491,11 +581,14 @@
         ctx.scale(s, s);
       }
     }
-    // 本体
+    // 本体（象牙の玉のような地）
     ctx.beginPath();
     ctx.arc(0, 0, t.r, 0, Math.PI * 2);
     if (t.key) {
-      ctx.fillStyle = "#fdfbf6";
+      const bgGrad = ctx.createRadialGradient(-t.r * 0.3, -t.r * 0.3, t.r * 0.2, 0, 0, t.r);
+      bgGrad.addColorStop(0, "#fffdf7");
+      bgGrad.addColorStop(1, "#efe4cd");
+      ctx.fillStyle = bgGrad;
       ctx.fill();
       if (facesReady) {
         ctx.save();
@@ -521,11 +614,40 @@
         ctx.fill();
       }
     }
-    // 環（段位色）
+    // 上位の御霊は淡い光彩をまとう
+    if (tier >= 5) {
+      ctx.save();
+      ctx.shadowColor = t.color;
+      ctx.shadowBlur = 10 + tier * 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, t.r - 0.5, 0, Math.PI * 2);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+    // 内環（段位色）
     ctx.beginPath();
-    ctx.arc(0, 0, t.r - 0.5, 0, Math.PI * 2);
+    ctx.arc(0, 0, t.r - 2.2, 0, Math.PI * 2);
     ctx.strokeStyle = t.color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+    // 外環（金）
+    const rim = ctx.createLinearGradient(-t.r, -t.r, t.r, t.r);
+    rim.addColorStop(0, "#e8d49a");
+    rim.addColorStop(0.5, "#8a744a");
+    rim.addColorStop(1, "#d9bd7a");
+    ctx.beginPath();
+    ctx.arc(0, 0, t.r - 0.4, 0, Math.PI * 2);
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    // 光沢（左上のつや）
+    ctx.beginPath();
+    ctx.arc(0, 0, t.r - 4.5, -2.35, -1.15);
+    ctx.strokeStyle = "rgba(255,255,255,.4)";
+    ctx.lineWidth = Math.max(1.5, t.r * 0.05);
+    ctx.lineCap = "round";
     ctx.stroke();
     ctx.restore();
   }
@@ -533,14 +655,53 @@
   function render(now) {
     ctx.clearRect(0, 0, W, H);
 
-    // 夜空
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#12122a");
-    bg.addColorStop(1, "#1c1836");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    // 夜空（生成背景。未ロード時は無地グラデ）
+    if (boardBg.complete && boardBg.naturalWidth) {
+      const ir = boardBg.naturalWidth / boardBg.naturalHeight;
+      const cr = W / H;
+      let dw = W, dh = H, dx = 0, dy = 0;
+      if (ir > cr) { dw = H * ir; dx = (W - dw) / 2; }
+      else { dh = W / ir; dy = (H - dh) / 2; }
+      ctx.drawImage(boardBg, dx, dy, dw, dh);
+    } else {
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, "#12122a");
+      bg.addColorStop(1, "#1c1836");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     drawMoon();
+
+    // 桜の花びら: ときどき舞い込んでゆっくり落ちる
+    if (!reducedMotion && now - lastPetalAt > 2100 && petals.length < 7) {
+      lastPetalAt = now;
+      petals.push({
+        x: 60 + Math.random() * (W - 120), y: -14,
+        vy: 0.32 + Math.random() * 0.25, phase: Math.random() * Math.PI * 2,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.02,
+        size: 5 + Math.random() * 3,
+      });
+    }
+    for (let i = petals.length - 1; i >= 0; i--) {
+      const p = petals[i];
+      p.phase += 0.02;
+      p.x += Math.sin(p.phase) * 0.5;
+      p.y += p.vy;
+      p.rot += p.vr;
+      if (p.y > H + 16) { petals.splice(i, 1); continue; }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = "#e8a7b8";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
     drawVessel();
 
     // 負け線
@@ -603,6 +764,13 @@
     }
     ctx.globalAlpha = 1;
 
+    // ビネット: 四隅をわずかに沈めて盤面を締める
+    const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 0.72);
+    vg.addColorStop(0, "rgba(6,6,18,0)");
+    vg.addColorStop(1, "rgba(6,6,18,.26)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
     // 満月成就・皆既月蝕のフラッシュ
     if (now < flashUntil) {
       const p = (flashUntil - now) / 1400;
@@ -648,6 +816,78 @@
     });
   }
 
+  // ---- 札絵（タイトル背景・カットイン・結果画面） ----
+  // オープニング: 札絵を数秒フルで見せてから案内カードを出す（タップで飛ばせる）
+  {
+    const ov = document.getElementById("title-overlay");
+    const bgEl = document.getElementById("title-bg");
+    const keys = Object.keys(FUDA_ART);
+    const bgKey = keys[Math.floor(Math.random() * keys.length)];
+    const showCard = () => ov.classList.add("ready");
+    const img = new Image();
+    img.onload = () => {
+      bgEl.style.backgroundImage = "url(" + FUDA_ART[bgKey] + ")";
+      ov.classList.add("art-in");
+      setTimeout(showCard, reducedMotion ? 400 : 2600);
+    };
+    img.onerror = showCard;
+    img.src = FUDA_ART[bgKey];
+    ov.addEventListener("pointerdown", showCard);  // タップで飛ばす
+    setTimeout(showCard, 5000);                    // 読み込みが遅い場合の保険
+  }
+  function showCutin() {
+    const box = document.getElementById("cutin");
+    // img要素を作り直してアニメwebpを毎回先頭から再生する
+    const old = document.getElementById("cutin-img");
+    const fresh = old.cloneNode();
+    fresh.src = CUTIN_ART;
+    old.replaceWith(fresh);
+    box.classList.remove("show");
+    void box.offsetWidth;
+    box.classList.add("show");
+    setTimeout(() => box.classList.remove("show"), 1750);
+    pausedUntil = Math.max(pausedUntil, performance.now() + 1750);
+  }
+  function showEclipse() {
+    const box = document.getElementById("eclipse");
+    const img = document.getElementById("eclipse-img");
+    if (!img.src) img.src = ECLIPSE_ART;
+    // 火の粉: 表示のたびにランダム配置で作り直す
+    const em = document.getElementById("e-embers");
+    em.innerHTML = "";
+    if (!reducedMotion) {
+      for (let i = 0; i < 16; i++) {
+        const sp = document.createElement("span");
+        sp.style.left = (4 + Math.random() * 92) + "%";
+        sp.style.setProperty("--dur", (1.5 + Math.random() * 0.9) + "s");
+        sp.style.setProperty("--delay", (0.35 + Math.random() * 0.9) + "s");
+        sp.style.setProperty("--sway", (Math.random() * 60 - 30) + "px");
+        const sz = 3 + Math.random() * 4;
+        sp.style.width = sp.style.height = sz + "px";
+        em.appendChild(sp);
+      }
+    }
+    box.classList.remove("show");
+    void box.offsetWidth;
+    box.classList.add("show");
+    setTimeout(() => box.classList.remove("show"), 2400);
+    pausedUntil = Math.max(pausedUntil, performance.now() + 2400);
+    // 発動の瞬間、盤面が揺れる
+    const m = document.querySelector("main");
+    m.classList.remove("shake");
+    void m.offsetWidth;
+    m.classList.add("shake");
+    setTimeout(() => m.classList.remove("shake"), 550);
+  }
+  function preloadFuda() {
+    for (const k of Object.keys(FUDA_ART)) {
+      const img = new Image();
+      img.src = FUDA_ART[k];
+    }
+    new Image().src = CUTIN_ART;
+    new Image().src = ECLIPSE_ART;
+  }
+
   // ---- タイトル画面（音あり／音なしの2つの入口） ----
   function enterNight(withSound) {
     soundOn = withSound;
@@ -657,10 +897,41 @@
     initAudio();
     applySound();
     fitCanvas();
+    loadBoardBg();
+    setTimeout(preloadFuda, 1200); // 遊びはじめの裏で札絵を先読み
   }
   document.getElementById("start").addEventListener("click", () => enterNight(true));
   document.getElementById("start-silent").addEventListener("click", () => enterNight(false));
   applySound(); // 音ボタンの初期表示
+
+  // ---- 演出確認: ヘッダーのタイトルを素早く3回タップで咲耶ペアを召喚 ----
+  {
+    let taps = [];
+    document.querySelector("header h1").addEventListener("pointerdown", () => {
+      const now = performance.now();
+      taps = taps.filter(t => now - t < 1500);
+      taps.push(now);
+      if (taps.length >= 3 && started && !gameOver) {
+        taps = [];
+        currentTier = 8; // 手持ちの玉が咲耶に変わる（狙って落とせる）
+      }
+    });
+  }
+
+  // ---- 演出確認モード（#test 付きで開くと咲耶が自動で降ってくる） ----
+  // ゲーム開始後: 咲耶×2 → 満月成就（カットイン）、6秒後にもう一組 → 満月×2 → 皆既月蝕
+  if (location.hash === "#test") {
+    const waiter = setInterval(() => {
+      if (!started) return;
+      clearInterval(waiter);
+      const pair = () => {
+        spawnBody(8, CUP_L + 102, 260);
+        spawnBody(8, CUP_R - 102, 260);
+      };
+      setTimeout(pair, 800);
+      setTimeout(pair, 6500);
+    }, 300);
+  }
 
   // ---- 自動テスト（#autotest 付きで開くと自動で落とし続ける） ----
   if (location.hash === "#autotest") {
@@ -677,8 +948,33 @@
   function loop(now) {
     const dt = Math.min(now - last, 33);
     last = now;
-    Engine.update(engine, dt);
-    checkGameOver(now);
+    while (pendingPurges.length && now >= pendingPurges[0].at) {
+      const { bodies } = pendingPurges.shift();
+      for (const o of bodies) {
+        burst(o.position.x, o.position.y, "#f2d98c", 10);
+        score += POINTS[o.tier];
+        World.remove(world, o);
+      }
+      if (bodies.length) {
+        addFloater(W / 2, 260, "月光の浄化", "#f2d98c");
+        updateHud();
+      }
+    }
+    while (pendingEclipses.length && now >= pendingEclipses[0].at) {
+      const { a, b, mx, my } = pendingEclipses.shift();
+      World.remove(world, a);
+      World.remove(world, b);
+      score += 100;
+      addFloater(mx, my, "皆既月蝕 +100", "#e5647a");
+      burst(mx, my, "#e5647a", 50);
+      flashUntil = now + 900;
+      flashColor = "#8a1f3d";
+      updateHud();
+    }
+    if (now >= pausedUntil) {
+      Engine.update(engine, dt);
+      checkGameOver(now);
+    }
     updateNext();
     render(now);
     requestAnimationFrame(loop);
