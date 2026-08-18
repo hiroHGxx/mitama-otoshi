@@ -140,40 +140,106 @@
   try { soundOn = localStorage.getItem("mitama_sound") !== "off"; } catch (e) {}
   const bgm = new Audio(BGM_DATA);
   bgm.loop = true;
-  bgm.volume = 0.3;
+  bgm.volume = 0.16; // BGMは控えめに、効果音を主役にする
 
+  let sfxBus = null; // 効果音のマスターゲイン
   function initAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) audioCtx = new AC();
+      if (AC) {
+        audioCtx = new AC();
+        sfxBus = audioCtx.createGain();
+        sfxBus.gain.value = 0.9;
+        sfxBus.connect(audioCtx.destination);
+      }
     }
   }
-  function tone(freq, dur, type, gain, delay) {
+
+  // --- 和楽器風の合成音 ---
+  // 琴の爪弾き: Karplus-Strong 法（減衰する弦の物理モデル）をバッファに焼き込む
+  const pluckCache = {};
+  function pluckBuffer(freq) {
+    const key = Math.round(freq);
+    if (pluckCache[key]) return pluckCache[key];
+    const sr = audioCtx.sampleRate;
+    const len = Math.floor(sr * 1.1);
+    const buf = audioCtx.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    const N = Math.max(2, Math.round(sr / freq));
+    for (let i = 0; i < N; i++) d[i] = Math.random() * 2 - 1; // 弾いた瞬間のノイズ
+    for (let i = N; i < len; i++) d[i] = 0.996 * 0.5 * (d[i - N] + d[i - N + 1]);
+    pluckCache[key] = buf;
+    return buf;
+  }
+  function playBuffer(buf, gain, delay) {
+    if (!audioCtx || !soundOn) return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const src = audioCtx.createBufferSource();
+    const g = audioCtx.createGain();
+    src.buffer = buf;
+    g.gain.value = gain;
+    src.connect(g).connect(sfxBus);
+    src.start(t);
+  }
+  // 陰旋法（都節音階）: 和の響きになる音の並び
+  const SCALE = [0, 1, 5, 7, 8];
+  function scaleFreq(step) {
+    const oct = Math.floor(step / SCALE.length);
+    const semi = SCALE[step % SCALE.length] + oct * 12;
+    return 220 * Math.pow(2, semi / 12);
+  }
+  // 拍子木: 短いノイズを高めの帯域だけ通す
+  function woodblock(delay) {
+    if (!audioCtx || !soundOn) return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const sr = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, Math.floor(sr * 0.06), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1700;
+    bp.Q.value = 6;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.8;
+    src.connect(bp).connect(g).connect(sfxBus);
+    src.start(t);
+  }
+  // 鐘・太鼓用の単音（減衰つき正弦波）
+  function toll(freq, dur, gain, delay, glideTo) {
     if (!audioCtx || !soundOn) return;
     const t = audioCtx.currentTime + (delay || 0);
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    o.type = type || "sine";
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(gain || 0.15, t);
+    o.frequency.setValueAtTime(freq, t);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+    g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(audioCtx.destination);
+    o.connect(g).connect(sfxBus);
     o.start(t);
     o.stop(t + dur);
   }
-  const sfxDrop = () => tone(200, 0.07, "triangle", 0.07);
+
+  const sfxDrop = () => woodblock(0);
   const sfxMerge = (tier) => {
-    const f = 320 * Math.pow(1.11, tier);
-    tone(f, 0.12, "sine", 0.16);
-    tone(f * 1.5, 0.2, "sine", 0.1, 0.07);
+    // 段位が上がるほど高い音の琴の爪弾き（二音で「つま弾き」感を出す）
+    if (!audioCtx) return;
+    playBuffer(pluckBuffer(scaleFreq(tier)), 0.9);
+    playBuffer(pluckBuffer(scaleFreq(tier + 2)), 0.5, 0.06);
   };
   const sfxMoon = () => {
-    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.5, "sine", 0.14, i * 0.12));
-    tone(131, 1.0, "sine", 0.18);
+    // 琴のかき鳴らし＋お寺の鐘（不協和な倍音で金属感）
+    if (!audioCtx) return;
+    [0, 2, 4, 5, 7].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s + 5)), 0.7, i * 0.09));
+    [110, 277, 484, 792].forEach((f, i) => toll(f, 2.2 - i * 0.3, 0.22 - i * 0.04, 0.35));
   };
   const sfxEclipse = () => {
-    tone(98, 0.8, "sawtooth", 0.1);
-    tone(65, 1.4, "sine", 0.2, 0.1);
+    // 大太鼓の轟き＋低い鐘
+    toll(90, 1.3, 0.5, 0, 45);
+    toll(55, 1.8, 0.35, 0.08);
+    woodblock(0.02);
   };
 
   function applySound() {
