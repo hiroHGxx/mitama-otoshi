@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <style>
-  /* 1200x600 (2:1) — X / Slack / Discord 両対応。
+  /* 1200x600 (2:1) OGP カード。背景は Lovart 生成のキービジュアル。
      書き出し: Chrome ヘッドレス --window-size=1200,600 --force-device-scale-factor=2 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -11,88 +11,83 @@
     height: 600px;
     overflow: hidden;
     position: relative;
-    background: linear-gradient(160deg, #12122a 0%, #1c1836 70%, #241d40 100%);
     font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
     color: #f0e8d8;
+    background: #12122a;
   }
-  .moon {
+  .bg {
     position: absolute;
-    right: -80px;
-    top: -60px;
-    width: 520px;
-    height: 520px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 38% 38%, #fff3c8, #e8c96a 70%, #d9b45a);
-    opacity: .9;
-    box-shadow: 0 0 120px 40px rgba(242, 217, 140, .25);
+    inset: 0;
+    background: url("../assets/art/keyvisual.jpg") center / cover no-repeat;
   }
-  .crater { position: absolute; border-radius: 50%; background: rgba(180, 150, 80, .3); }
-  .content {
+  .veil {
     position: absolute;
-    left: 80px;
-    top: 96px;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(10, 10, 26, .82) 0%, rgba(10, 10, 26, .55) 34%, rgba(10, 10, 26, 0) 60%);
   }
+  .content { position: absolute; left: 72px; top: 118px; }
   .eyebrow {
-    font-size: 22px;
-    letter-spacing: .3em;
-    color: #9d96b8;
+    font-size: 21px;
+    letter-spacing: .26em;
+    color: #b9b1d4;
     margin-bottom: 18px;
     white-space: nowrap;
+    text-shadow: 0 1px 8px rgba(0,0,0,.8);
   }
   h1 {
-    font-size: 110px;
+    font-size: 104px;
     font-weight: 800;
     letter-spacing: .12em;
     color: #f2d98c;
     line-height: 1.1;
     white-space: nowrap;
-    text-shadow: 0 0 60px rgba(242, 217, 140, .35);
+    text-shadow: 0 0 60px rgba(242, 217, 140, .45), 0 2px 10px rgba(0,0,0,.7);
   }
   .tagline {
-    margin-top: 22px;
-    font-size: 30px;
+    margin-top: 20px;
+    font-size: 29px;
     letter-spacing: .12em;
-    color: #f0e8d8;
     white-space: nowrap;
+    text-shadow: 0 1px 8px rgba(0,0,0,.85);
   }
   .ladder {
     position: absolute;
-    left: 80px;
-    bottom: 74px;
+    left: 72px;
+    bottom: 64px;
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
   }
   .ladder img {
     border-radius: 50%;
-    border: 4px solid;
+    border: 3px solid;
     background: #fdfbf6;
     flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(0,0,0,.6);
   }
-  .ladder .arrow { color: #9d96b8; font-size: 20px; flex-shrink: 0; }
+  .ladder .arrow { color: #b9b1d4; font-size: 17px; flex-shrink: 0; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
   .ladder .fullmoon {
     border-radius: 50%;
-    border: 4px solid #f2d98c;
+    border: 3px solid #f2d98c;
     background: radial-gradient(circle at 35% 35%, #fff3c8, #e8c96a);
     flex-shrink: 0;
+    box-shadow: 0 0 18px rgba(242,217,140,.7);
   }
   .credit {
     position: absolute;
-    right: 44px;
-    bottom: 28px;
-    font-size: 18px;
+    right: 36px;
+    bottom: 24px;
+    font-size: 17px;
     letter-spacing: .08em;
-    color: #9d96b8;
+    color: #cfc7e4;
     white-space: nowrap;
+    text-shadow: 0 1px 6px rgba(0,0,0,.9);
   }
 </style>
 </head>
 <body>
-  <div class="moon">
-    <div class="crater" style="width:90px;height:90px;left:120px;top:150px"></div>
-    <div class="crater" style="width:56px;height:56px;left:300px;top:260px"></div>
-    <div class="crater" style="width:44px;height:44px;left:210px;top:80px"></div>
-  </div>
+  <div class="bg"></div>
+  <div class="veil"></div>
   <div class="content">
     <div class="eyebrow">『月蝕綺譚 -Luna Occulta-』二次創作ファンゲーム</div>
     <h1>御霊おとし</h1>
@@ -102,13 +97,14 @@
   <div class="credit">非公式 / © Studio VIBE のガイドラインに基づく</div>
   <script>
     const chars = ["nemu", "oto", "anne", "nekomata", "benten", "uka", "izuna", "shion", "sakuya"];
+    const colors = ["#6ec6ff","#c9a15e","#7ac074","#e89a3c","#66d1c1","#f08c5a","#d9c86a","#9a7fd1","#f06292"];
     const box = document.getElementById("ladder");
     chars.forEach((n, i) => {
       const img = document.createElement("img");
       img.src = "../assets/faces/" + n + ".png";
-      const size = 50 + i * 6;
+      const size = 42 + i * 4;
       img.style.width = img.style.height = size + "px";
-      img.style.borderColor = ["#6ec6ff","#c9a15e","#7ac074","#e89a3c","#66d1c1","#f08c5a","#d9c86a","#9a7fd1","#f06292"][i];
+      img.style.borderColor = colors[i];
       box.appendChild(img);
       const a = document.createElement("span");
       a.className = "arrow";
@@ -117,7 +113,7 @@
     });
     const m = document.createElement("div");
     m.className = "fullmoon";
-    m.style.width = m.style.height = "112px";
+    m.style.width = m.style.height = "86px";
     box.appendChild(m);
   </script>
 </body>
