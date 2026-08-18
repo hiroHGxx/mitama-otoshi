@@ -33,9 +33,16 @@ node scripts/build-dist.js
 - 物理エンジン: [Matter.js](https://brm.io/matter-js/)（MIT・`vendor/` に同梱）
 - `index.html#autotest` で開くと自動プレイのデバッグモード
 
-## 二次創作について
+## 二次創作について・クレジット
 
 本作は『月蝕綺譚 -Luna Occulta-』（Studio VIBE / CryptoNinja 外伝）の
-[二次創作ガイドライン](https://vibe.co.jp/luna-occulta/fanworks)に基づくファンメイド作品で、**公式とは関係ありません**。
-キャラクター画像は公式配布の正典シート（ちびシート）を作画資料・素材として利用しています。
-キャラクターおよび原作の権利は原権利者に帰属します。
+[二次創作ガイドライン](https://vibe.co.jp/luna-occulta/fanworks)および
+[CryptoNinja ガイドライン](https://www.ninja-dao.com/guidelines)に基づくファンメイド作品で、**公式とは関係ありません**。
+
+- **キャラクター画像**: 公式[素材蔵](https://vibe.co.jp/luna-occulta/fanworks/assets)配布の正典シート（ちびシート）から切り出して使用（「二次創作のゲーム・画像作品に組み込んでOK」のお約束に基づく）
+- **BGM**: 公式素材蔵配布のタイトル曲（メインテーマ）を AAC に変換して使用（「作品に組み込んで公開するのはOK」のお約束に基づく）。楽曲の単体利用・再配布はできません
+- **効果音**: WebAudio による自作（Karplus-Strong 合成ほか）
+- 正典シートの原本はこのリポジトリには含めていません（ビルド時に公式素材蔵から取得します）
+
+キャラクター・楽曲および原作の権利は原権利者（Studio VIBE / CryptoNinja）に帰属します。
+本作は無料で公開しており、収益化はしていません。

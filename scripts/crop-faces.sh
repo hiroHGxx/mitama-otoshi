@@ -4,6 +4,17 @@
 # キャラごとの「クロップサイズ / Yオフセット / Xオフセット」は
 # 目の中間点がクロップの (50%, 48%) に来るよう校正済み。
 cd "$(dirname "$0")/.."
+
+# 正典シート原本はリポジトリに含めない（素材そのままの再配布を避けるため）。
+# 無ければ公式の素材蔵（kura.vibe.co.jp）からダウンロードする。
+mkdir -p assets/sheets
+for n in nemu oto anne nekomata benten uka izuna shion sakuya; do
+  if [ ! -f "assets/sheets/$n.png" ]; then
+    echo "downloading $n sheet from official kura..."
+    curl -s "https://kura.vibe.co.jp/canon/${n}_chibi_sheet.png" -o "assets/sheets/$n.png"
+  fi
+done
+
 crop() { # name size offY offX
   sips -c $2 $2 --cropOffset $3 $4 assets/sheets/$1.png --out assets/faces/$1.png >/dev/null 2>&1
   sips -z 160 160 assets/faces/$1.png >/dev/null 2>&1
