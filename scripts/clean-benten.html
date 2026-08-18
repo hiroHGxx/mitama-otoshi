@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8">
+<style>html,body{margin:0}canvas{display:block}</style>
+<canvas id="c" width="280" height="280"></canvas>
+<script>
+// 弁天のクロップ右端に写り込む隣の立ち絵を白で塗りつぶす
+const img = new Image();
+img.onload = () => {
+  const ctx = document.getElementById("c").getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(252, 0, 28, 280);
+};
+img.src = "benten_raw.png";
+</script>
