@@ -186,11 +186,12 @@
     filter: drop-shadow(0 0 44px rgba(242, 217, 140, .45));
     animation: cutin-slide 1.7s cubic-bezier(.2, .8, .25, 1) forwards;
   }
+  /* カットインの絵は右向きなので、左から右へ走らせて前進感を出す */
   @keyframes cutin-slide {
-    0%   { transform: translateX(125%) rotate(-2deg); }
-    13%  { transform: translateX(0) rotate(-2deg); }
-    80%  { transform: translateX(-3%) rotate(-2deg); }
-    100% { transform: translateX(-140%) rotate(-2deg); }
+    0%   { transform: translateX(-125%) rotate(2deg); }
+    13%  { transform: translateX(0) rotate(2deg); }
+    80%  { transform: translateX(3%) rotate(2deg); }
+    100% { transform: translateX(140%) rotate(2deg); }
   }
   @keyframes band-fade { 0% { opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
   /* 皆既月蝕（深紅の帳＋筆文字） */
