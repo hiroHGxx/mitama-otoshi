@@ -17,7 +17,7 @@
     { name: "イズナ", key: "izuna",  r: 70,  color: "#d9c86a" },
     { name: "紫苑",   key: "shion",  r: 84,  color: "#9a7fd1" },
     { name: "咲耶",   key: "sakuya", r: 90,  color: "#f06292" },
-    { name: "満月",   key: null,     r: 106, color: "#f2d98c" },
+    { name: "満月",   key: null,     r: 106, color: "#F0CE7E" },
   ];
   const POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55];
   const SPAWN_WEIGHTS = [30, 25, 20, 15, 10]; // tier 0-4
@@ -101,7 +101,7 @@
   const pendingEclipses = []; // 皆既月蝕: 月×2を触れ合ったまま見せてから消す
   const pendingPurges = [];   // 月光の浄化: 満月誕生時に小さな御霊を消す
   let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
-  let flashColor = "#f2d98c";
+  let flashColor = "#F0CE7E";
   let score = 0;
   let best = 0;
   try { best = +(localStorage.getItem("mitama_best") || 0); } catch (e) {}
@@ -117,6 +117,7 @@
   const floaters = [];
   const petals = [];       // 舞い散る桜の花びら（環境演出）
   let lastPetalAt = 0;
+  const dust = [];         // 闇にただよう金泥の塵（環境演出）
 
   function pickTier() {
     const total = SPAWN_WEIGHTS.reduce((a, b) => a + b, 0);
@@ -384,12 +385,12 @@
         score += POINTS[nt];
         maxTier = Math.max(maxTier, nt);
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
-        burst(mx, my, TIERS[nt].color, 14);
+        goldBurst(mx, my, 14);
         sfxMerge(nt);
         if (nt === TIERS.length - 1) {
           // 満月成就の見せ場
-          addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#f2d98c");
-          burst(mx, my, "#f2d98c", 40);
+          addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#F0CE7E");
+          goldBurst(mx, my, 40);
           showCutin();
           sfxMoon();
           // 月光の浄化: 三段目までの小さな御霊を最大4体、カットイン中に消す
@@ -399,7 +400,7 @@
           for (const o of smalls) o.merging = true;
           if (smalls.length) pendingPurges.push({ bodies: smalls, at: performance.now() + 900 });
           flashUntil = performance.now() + 1400;
-          flashColor = "#f2d98c";
+          flashColor = "#F0CE7E";
         }
       }
       updateHud();
@@ -407,6 +408,19 @@
   });
 
   // ---- 演出 ----
+  // 金泥の粒: 「金は面で塗らず、粒で灯す」（公式トンマナ）
+  const GOLD_GRAINS = ["#F0CE7E", "#D9A94C", "#f6e5ae"];
+  function goldBurst(x, y, n) {
+    if (reducedMotion) n = Math.min(n, 4);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 3;
+      particles.push({
+        x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 1,
+        life: 1, color: GOLD_GRAINS[(Math.random() * GOLD_GRAINS.length) | 0],
+      });
+    }
+  }
   function burst(x, y, color, n) {
     if (reducedMotion) n = Math.min(n, 4);
     for (let i = 0; i < n; i++) {
@@ -499,9 +513,22 @@
   }
 
   // ---- HUD ----
+  // スコアは表示値が実値を追いかけて回る（カウントアップ）。加点時に軽くポップ。
+  const scoreEl = document.getElementById("score");
+  let shownScore = 0;
   function updateHud() {
-    document.getElementById("score").textContent = score;
     document.getElementById("best").textContent = best;
+    if (score > shownScore) {
+      scoreEl.classList.remove("bump");
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add("bump");
+    }
+  }
+  function tickScore() {
+    if (shownScore === score) return;
+    if (score < shownScore) shownScore = score; // リトライ時は即リセット
+    else shownScore = Math.min(score, shownScore + Math.max(1, Math.ceil((score - shownScore) * 0.22)));
+    scoreEl.textContent = shownScore;
   }
   updateHud();
 
@@ -516,10 +543,10 @@
     ctx.globalAlpha = 0.07;
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = "#f2d98c";
+    ctx.fillStyle = "#F0CE7E";
     ctx.fill();
     ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "#f2d98c";
+    ctx.strokeStyle = "#F0CE7E";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -527,7 +554,7 @@
     if (f > 0) {
       ctx.globalAlpha = 0.32;
       if (f >= 1) {
-        ctx.shadowColor = "#f2d98c";
+        ctx.shadowColor = "#F0CE7E";
         ctx.shadowBlur = 40;
       }
       ctx.beginPath();
@@ -535,7 +562,7 @@
       const rx = R * Math.abs(2 * f - 1);
       // f<0.5: 明暗の境界が右寄りに湾曲 / f>0.5: 左寄りに湾曲
       ctx.ellipse(cx, cy, rx, R, 0, Math.PI / 2, -Math.PI / 2, f <= 0.5);
-      ctx.fillStyle = "#f2d98c";
+      ctx.fillStyle = "#F0CE7E";
       ctx.fill();
     }
     ctx.restore();
@@ -570,7 +597,7 @@
     // 縁の珠は金の玉に
     for (const x of [visL, visR]) {
       const kg = ctx.createRadialGradient(x - 3, CUP_TOP - 3, 2, x, CUP_TOP, WALL);
-      kg.addColorStop(0, "#f2d98c");
+      kg.addColorStop(0, "#F0CE7E");
       kg.addColorStop(1, "#8a744a");
       ctx.fillStyle = kg;
       ctx.beginPath();
@@ -685,6 +712,30 @@
 
     drawMoon();
 
+    // 金の塵: 闇の中を金泥の粒がゆっくり昇る（粒で灯す）
+    if (!reducedMotion) {
+      if (dust.length < 18 && Math.random() < 0.06) {
+        dust.push({
+          x: 20 + Math.random() * (W - 40), y: H + 6,
+          vy: -(0.08 + Math.random() * 0.15), phase: Math.random() * Math.PI * 2,
+          size: 0.8 + Math.random() * 1.5, a: 0.10 + Math.random() * 0.22,
+        });
+      }
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        d.phase += 0.008;
+        d.x += Math.sin(d.phase) * 0.25;
+        d.y += d.vy;
+        if (d.y < -8) { dust.splice(i, 1); continue; }
+        ctx.globalAlpha = d.a * (0.65 + 0.35 * Math.sin(d.phase * 3));
+        ctx.fillStyle = "#F0CE7E";
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // 桜の花びら: ときどき舞い込んでゆっくり落ちる
     if (!reducedMotion && now - lastPetalAt > 2100 && petals.length < 7) {
       lastPetalAt = now;
@@ -706,7 +757,7 @@
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#e8a7b8";
+      ctx.fillStyle = "#8E6B9E";
       ctx.beginPath();
       ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -963,12 +1014,12 @@
     while (pendingPurges.length && now >= pendingPurges[0].at) {
       const { bodies } = pendingPurges.shift();
       for (const o of bodies) {
-        burst(o.position.x, o.position.y, "#f2d98c", 10);
+        goldBurst(o.position.x, o.position.y, 10);
         score += POINTS[o.tier];
         World.remove(world, o);
       }
       if (bodies.length) {
-        addFloater(W / 2, 260, "月光の浄化", "#f2d98c");
+        addFloater(W / 2, 260, "月光の浄化", "#F0CE7E");
         updateHud();
       }
     }
@@ -977,8 +1028,8 @@
       World.remove(world, a);
       World.remove(world, b);
       score += 100;
-      addFloater(mx, my, "皆既月蝕 +100", "#e5647a");
-      burst(mx, my, "#e5647a", 50);
+      addFloater(mx, my, "皆既月蝕 +100", "#E0562F");
+      burst(mx, my, "#E0562F", 50);
       flashUntil = now + 900;
       flashColor = "#8a1f3d";
       updateHud();
@@ -988,6 +1039,7 @@
       checkGameOver(now);
     }
     updateNext();
+    tickScore();
     render(now);
     requestAnimationFrame(loop);
   }
