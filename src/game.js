@@ -232,12 +232,33 @@
     o.stop(t + dur);
   }
 
+  // 鈴: 満月が盤面にある間、ちりんと薄く鳴る（緊張と期待）
+  function sfxBell() {
+    if (!audioCtx || !soundOn) return;
+    const t = audioCtx.currentTime;
+    [[2793, 0.030], [4186, 0.016], [5588, 0.008]].forEach(([f, amp]) => {
+      const o = audioCtx.createOscillator();
+      o.type = "sine";
+      o.frequency.value = f * (1 + (Math.random() - 0.5) * 0.012);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.010);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+      o.connect(g).connect(sfxBus);
+      o.start(t);
+      o.stop(t + 1.25);
+    });
+  }
+
   const sfxDrop = () => woodblock(0);
-  const sfxMerge = (tier) => {
+  const sfxMerge = (tier, chain) => {
     // 段位が上がるほど高い音の琴の爪弾き（二音で「つま弾き」感を出す）
+    // 連鎖中は陰旋法のまま音階を駆け上がる
     if (!audioCtx) return;
-    playBuffer(pluckBuffer(scaleFreq(tier)), 0.9);
-    playBuffer(pluckBuffer(scaleFreq(tier + 2)), 0.5, 0.06);
+    const up = Math.min(((chain || 1) - 1) * 2, 8);
+    playBuffer(pluckBuffer(scaleFreq(tier + up)), 0.9);
+    playBuffer(pluckBuffer(scaleFreq(tier + up + 2)), 0.5, 0.06);
+    if (chain >= 2) playBuffer(pluckBuffer(scaleFreq(tier + up + 4)), 0.35, 0.12);
   };
   const sfxMoon = () => {
     // 琴のかき鳴らし＋高音のきらめき（太鼓・鐘は皆既月蝕専用にする）
@@ -363,6 +384,12 @@
   Events.on(engine, "collisionStart", tryMerge);
   Events.on(engine, "collisionActive", tryMerge);
 
+  // 連鎖: 因果ベースで判定する。合体で生まれた玉は親の連鎖深度+1を継承し、
+  // 生まれて間もない（=熱い）うちに次の合体を引き起こしたときだけ連鎖が伸びる。
+  // プレイヤーが落とした玉は深度0なので、タップ連打の同時多発浄化は連鎖にならない。
+  const CHAIN_HOT_MS = 1600;
+  const CHAIN_KANJI = ["", "", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+
   Events.on(engine, "afterUpdate", () => {
     while (mergeQueue.length) {
       const [a, b] = mergeQueue.pop();
@@ -386,7 +413,17 @@
         maxTier = Math.max(maxTier, nt);
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
         goldBurst(mx, my, 14);
-        sfxMerge(nt);
+        const nowMs = performance.now();
+        const hot = (body) => (body.chainDepth && nowMs - body.chainBornAt < CHAIN_HOT_MS) ? body.chainDepth : 0;
+        const depth = Math.max(hot(a), hot(b)) + 1;
+        nb.chainDepth = depth;
+        nb.chainBornAt = nowMs;
+        if (depth >= 2) {
+          const k = CHAIN_KANJI[Math.min(depth, 10)];
+          addChainBanner(k + "連浄化");
+          goldBurst(mx, my, 6 + depth * 2);
+        }
+        sfxMerge(nt, depth);
         if (nt === TIERS.length - 1) {
           // 満月成就の見せ場
           addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#F0CE7E");
@@ -435,6 +472,13 @@
   function addFloater(x, y, text, color) {
     floaters.push({ x, y, text, color, life: 1 });
   }
+  // 連鎖バナー: 掛け軸のような縦書き金文字。新しい連鎖で書き換わる
+  let chainBanner = null;
+  let moonOnBoard = false;  // 盤面に満月がある間は鈴の音が薄く鳴る
+  let nextBellAt = 0;
+  function addChainBanner(text) {
+    chainBanner = { text, life: 1, bornAt: performance.now() };
+  }
 
   // ---- 入力 ----
   function clientToWorldX(clientX) {
@@ -473,6 +517,7 @@
       if (b.tier !== undefined) World.remove(world, b);
     }
     score = 0; maxTier = 0; gameOver = false; overSince = 0;
+    chainBanner = null; moonOnBoard = false;
     currentTier = pickTier(); nextTier = pickTier(); canDrop = true;
     document.getElementById("overlay").classList.remove("show");
     updateHud();
@@ -640,6 +685,16 @@
         ctx.restore();
       }
     } else {
+      // 満月: 脈動する金の後光（reduced-motion時は静かな光のみ）
+      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 640);
+      const halo = ctx.createRadialGradient(0, 0, t.r * 0.72, 0, 0, t.r * 1.45);
+      halo.addColorStop(0, "rgba(240, 206, 126, 0)");
+      halo.addColorStop(0.6, `rgba(240, 206, 126, ${(0.08 + 0.10 * pulse).toFixed(3)})`);
+      halo.addColorStop(1, "rgba(240, 206, 126, 0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(0, 0, t.r * 1.45, 0, Math.PI * 2);
+      ctx.fill();
       // 満月
       const g = ctx.createRadialGradient(-t.r * 0.25, -t.r * 0.25, t.r * 0.1, 0, 0, t.r);
       g.addColorStop(0, "#fff3c8");
@@ -796,8 +851,10 @@
     }
 
     // 落下済みの御霊
+    moonOnBoard = false;
     for (const b of Composite.allBodies(world)) {
       if (b.tier === undefined) continue;
+      if (b.tier === TIERS.length - 1) moonOnBoard = true;
       drawBall(b.position.x, b.position.y, b.angle, b.tier, false, b.bornAt);
     }
 
@@ -826,6 +883,30 @@
       ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
+
+    // 連鎖バナー: 右肩に縦書きの金文字（掛け軸ふう）
+    if (chainBanner) {
+      const age = (now - chainBanner.bornAt) / 1400;
+      if (age >= 1) { chainBanner = null; }
+      else {
+        const inP = Math.min(1, age * 6);              // すっと現れ
+        const outP = age > 0.75 ? (1 - age) / 0.25 : 1; // ふっと消える
+        ctx.save();
+        ctx.globalAlpha = inP * outP;
+        ctx.font = "800 30px 'Shippori Mincho B1', 'Hiragino Mincho ProN', serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#F0CE7E";
+        ctx.shadowColor = "rgba(240, 206, 126, .55)";
+        ctx.shadowBlur = 14;
+        const bx = CUP_R - 34;
+        let by = 236 - 8 * (1 - inP);
+        for (const ch of chainBanner.text) {
+          ctx.fillText(ch, bx, by);
+          by += 34;
+        }
+        ctx.restore();
+      }
+    }
 
     // ビネット: 四隅をわずかに沈めて盤面を締める
     const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 0.72);
@@ -900,10 +981,10 @@
   }
   function showCutin() {
     const box = document.getElementById("cutin");
-    // img要素を作り直してアニメwebpを毎回先頭から再生する
+    // img要素を作り直してアニメwebpを毎回先頭から再生する。衣装はランダム
     const old = document.getElementById("cutin-img");
     const fresh = old.cloneNode();
-    fresh.src = CUTIN_ART;
+    fresh.src = CUTIN_ARTS[(Math.random() * CUTIN_ARTS.length) | 0];
     old.replaceWith(fresh);
     box.classList.remove("show");
     void box.offsetWidth;
@@ -947,7 +1028,7 @@
       const img = new Image();
       img.src = FUDA_ART[k];
     }
-    new Image().src = CUTIN_ART;
+    for (const u of CUTIN_ARTS) new Image().src = u;
     new Image().src = ECLIPSE_ART;
   }
 
@@ -1040,6 +1121,10 @@
     }
     updateNext();
     tickScore();
+    if (moonOnBoard && !gameOver && now >= nextBellAt) {
+      sfxBell();
+      nextBellAt = now + 2600 + Math.random() * 900;
+    }
     render(now);
     requestAnimationFrame(loop);
   }
