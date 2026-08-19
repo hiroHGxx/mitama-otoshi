@@ -11,8 +11,12 @@ const FUDA_ART = {
   shion:    "assets/art/fuda_shion.webp",
   sakuya:   "assets/art/fuda_sakuya.webp",
 };
-// 必殺カットイン（アニメーションwebp・公式素材蔵 ult より）
-const CUTIN_ART = "assets/art/cutin_sakuya.webp";
+// 必殺カットイン（アニメーションwebp・公式素材蔵 ult より）: 衣装違いをランダムに
+const CUTIN_ARTS = [
+  "assets/art/cutin_sakuya.webp",        // 正装
+  "assets/art/cutin_sakuya_haregi.webp", // 晴れ着
+  "assets/art/cutin_sakuya_yukata.webp", // 浴衣
+];
 // 皆既月蝕の一枚絵（Lovart / GPT Image 2 生成・二次創作ガイドラインのAI生成利用に基づく）
 const ECLIPSE_ART = "assets/art/eclipse.jpg";
 // 盤面背景（Lovart / GPT Image 2 生成）
