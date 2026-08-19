@@ -12,19 +12,21 @@
 <meta property="og:image" content="https://hirohgxx.github.io/mitama-otoshi/ogp.png?v=2">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://hirohgxx.github.io/mitama-otoshi/ogp.png?v=2">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%23f2d98c'/><circle cx='38' cy='42' r='9' fill='%23d9bc6a'/><circle cx='60' cy='60' r='6' fill='%23d9bc6a'/></svg>">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&display=swap">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='38' fill='none' stroke='%23C93A2E' stroke-width='12' stroke-linecap='round' stroke-dasharray='159 80' transform='rotate(-58 50 50)'/><circle cx='50' cy='50' r='17' fill='%23F0CE7E'/></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=M+PLUS+Rounded+1c:wght@800&display=swap">
 <style>
-  /* 夜に committed な単一テーマ */
+  /* 夜に committed な単一テーマ（公式トンマナ「宵闇に金」の実装トークンに準拠） */
   :root {
-    --night: #12122a;
-    --night-2: #1c1836;
-    --panel: #232345;
+    --night: #131320;    /* 宵闇藍 */
+    --night-2: #1B1B2E;  /* 宵闇藍・明 */
+    --panel: #100E1C;
     --line: #4a4468;
-    --ink: #f0e8d8;
-    --ink-dim: #9d96b8;
-    --moon: #f2d98c;
-    --sakura: #e5647a;
+    --ink: #E8E4D8;      /* 月白 */
+    --ink-dim: #9D93B5;
+    --moon: #F0CE7E;     /* 金泥・高輝度 */
+    --kindei: #D9A94C;   /* 金泥 */
+    --shokko: #E0562F;   /* 蝕紅: 警告と高揚のみ・面積5%以下 */
+    --anshi: #8E6B9E;    /* 暗紫: 夜桜 */
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; touch-action: none; }
@@ -90,11 +92,14 @@
     color: var(--ink-dim);
   }
   .stat .value {
+    font-family: "M PLUS Rounded 1c", "Shippori Mincho B1", sans-serif;
     font-size: 19px;
-    font-weight: 700;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
+  .stat .value.bump { animation: score-bump .18s ease; }
+  @keyframes score-bump { 40% { transform: scale(1.22); color: var(--moon); } }
   .next {
     display: flex;
     flex-direction: column;
@@ -228,7 +233,7 @@
   #eclipse .e-flash {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 30%, rgba(229, 100, 122, .55), transparent 60%);
+    background: radial-gradient(circle at 50% 30%, rgba(224, 86, 47, .50), transparent 60%);
     opacity: 0;
     animation: e-flash 2.4s ease .25s forwards;
   }
@@ -264,6 +269,24 @@
     78%  { opacity: 1; }
     100% { opacity: 0; }
   }
+  /* 蝕環: 血月をひと息の筆円相が囲む */
+  #eclipse .e-ring {
+    position: absolute;
+    left: 50%;
+    top: 20%;
+    width: 76vmin;
+    height: 76vmin;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    filter: drop-shadow(0 0 16px rgba(224, 86, 47, .55));
+    animation: e-ring-in 2.15s ease .3s forwards;
+  }
+  @keyframes e-ring-in {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.14) rotate(-9deg); }
+    20%  { opacity: .92; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    82%  { opacity: .92; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.01); }
+  }
   /* 「皆既月蝕」金文字: 血月の上にズームインで登場 */
   #eclipse .e-text {
     position: relative;
@@ -272,12 +295,12 @@
     letter-spacing: .35em;
     text-indent: .35em;
     color: var(--moon);
-    text-shadow: 0 0 26px rgba(229, 100, 122, .85), 0 0 8px rgba(242, 217, 140, .5), 0 2px 10px rgba(0, 0, 0, .7);
+    text-shadow: 0 0 26px rgba(224, 86, 47, .85), 0 0 8px rgba(240, 206, 126, .5), 0 2px 10px rgba(0, 0, 0, .7);
     opacity: 0;
     animation: e-zoom 2.15s cubic-bezier(.16, .9, .3, 1) .45s forwards;
   }
   @media (prefers-reduced-motion: reduce) {
-    #cutin.show::before, #cutin img, #eclipse .e-dark, #eclipse .e-art, #eclipse .e-flash, .e-embers span, #eclipse .e-text, main.shake { animation: none; }
+    #cutin.show::before, #cutin img, #eclipse .e-dark, #eclipse .e-art, #eclipse .e-flash, .e-embers span, #eclipse .e-text, #eclipse .e-ring, main.shake { animation: none; }
   }
   @media (max-width: 430px) {
     h1 { font-size: 14px; letter-spacing: .08em; }
@@ -294,11 +317,12 @@
     font-size: 22px;
     font-weight: 800;
     letter-spacing: .3em;
-    color: var(--sakura);
+    color: var(--shokko);
   }
   .card .sub { font-size: 11px; letter-spacing: .12em; color: var(--ink-dim); margin-top: -6px; }
   .card .score-label { font-size: 10px; letter-spacing: .25em; color: var(--ink-dim); }
   #final-score {
+    font-family: "M PLUS Rounded 1c", "Shippori Mincho B1", sans-serif;
     font-size: 44px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
@@ -319,7 +343,7 @@
     padding: 12px 28px;
     cursor: pointer;
   }
-  #retry:focus-visible { outline: 3px solid var(--sakura); outline-offset: 2px; }
+  #retry:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
   #mute {
     font-family: inherit;
     font-size: 16px;
@@ -333,7 +357,7 @@
     cursor: pointer;
   }
   #mute.off { color: var(--ink-dim); text-decoration: line-through; }
-  #mute:focus-visible { outline: 2px solid var(--sakura); outline-offset: 2px; }
+  #mute:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
   #ladder {
     display: flex;
     align-items: center;
@@ -357,7 +381,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #12122a;
+    background-color: var(--night);
     overflow: hidden;
     z-index: 20;
   }
@@ -399,11 +423,27 @@
     #title-overlay.art-in #title-bg { animation: none; }
   }
   .game-title {
+    position: relative;
     font-size: 34px;
     font-weight: 800;
     letter-spacing: .3em;
-    color: var(--moon);
+    background: linear-gradient(168deg, #f6e5ae 15%, #D9A94C 55%, #F0CE7E 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 14px rgba(240, 206, 126, .30)) drop-shadow(0 2px 6px rgba(0, 0, 0, .55));
     text-wrap: balance;
+  }
+  /* タイトルロゴの背後に蝕環（公式の視覚的署名） */
+  .card .shokkan {
+    position: absolute;
+    left: 50%;
+    top: 4px;
+    width: 100px;
+    height: 100px;
+    transform: translateX(-50%);
+    opacity: .34;
+    pointer-events: none;
   }
   .game-sub { font-size: 10px; letter-spacing: .15em; color: var(--ink-dim); margin-top: -6px; }
   .howto {
@@ -416,7 +456,7 @@
     color: var(--ink);
     text-align: left;
   }
-  .howto li::before { content: "〇 "; color: var(--sakura); }
+  .howto li::before { content: "〇 "; color: var(--kindei); }
   #start {
     font-family: inherit;
     font-size: 15px;
@@ -429,7 +469,7 @@
     padding: 14px 30px;
     cursor: pointer;
   }
-  #start:focus-visible { outline: 3px solid var(--sakura); outline-offset: 2px; }
+  #start:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
   .sound-note { font-size: 10px; letter-spacing: .1em; color: var(--ink-dim); margin-top: -6px; }
   #start-silent {
     font-family: inherit;
@@ -442,7 +482,7 @@
     padding: 9px 18px;
     cursor: pointer;
   }
-  #start-silent:focus-visible { outline: 2px solid var(--sakura); outline-offset: 2px; }
+  #start-silent:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
   footer {
     width: 100%;
     text-align: center;
@@ -482,6 +522,7 @@
 <div id="title-overlay">
   <div id="title-bg"></div>
   <div class="card">
+    <svg class="shokkan" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="#C93A2E" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)"/></svg>
     <div class="game-title">御霊おとし</div>
     <div class="game-sub">— 月蝕綺譚 -Luna Occulta- 二次創作 —</div>
     <ul class="howto">
@@ -511,7 +552,7 @@
 </div>
 
 <div id="cutin"><img id="cutin-img" alt="満月成就"></div>
-<div id="eclipse"><div class="e-dark"></div><img class="e-art" id="eclipse-img" alt=""><div class="e-flash"></div><div class="e-embers" id="e-embers"></div><div class="e-text">皆既月蝕</div></div>
+<div id="eclipse"><div class="e-dark"></div><img class="e-art" id="eclipse-img" alt=""><div class="e-flash"></div><svg class="e-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="#C93A2E" stroke-width="2.8" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)" opacity=".8"/><circle cx="50" cy="50" r="40" fill="none" stroke="#E0562F" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)"/></svg><div class="e-embers" id="e-embers"></div><div class="e-text">皆既月蝕</div></div>
 
 <script>
 /*!
@@ -584,7 +625,7 @@ const FACE_DATA = {
     { name: "イズナ", key: "izuna",  r: 70,  color: "#d9c86a" },
     { name: "紫苑",   key: "shion",  r: 84,  color: "#9a7fd1" },
     { name: "咲耶",   key: "sakuya", r: 90,  color: "#f06292" },
-    { name: "満月",   key: null,     r: 106, color: "#f2d98c" },
+    { name: "満月",   key: null,     r: 106, color: "#F0CE7E" },
   ];
   const POINTS = [1, 3, 6, 10, 15, 21, 28, 36, 45, 55];
   const SPAWN_WEIGHTS = [30, 25, 20, 15, 10]; // tier 0-4
@@ -668,7 +709,7 @@ const FACE_DATA = {
   const pendingEclipses = []; // 皆既月蝕: 月×2を触れ合ったまま見せてから消す
   const pendingPurges = [];   // 月光の浄化: 満月誕生時に小さな御霊を消す
   let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
-  let flashColor = "#f2d98c";
+  let flashColor = "#F0CE7E";
   let score = 0;
   let best = 0;
   try { best = +(localStorage.getItem("mitama_best") || 0); } catch (e) {}
@@ -684,6 +725,7 @@ const FACE_DATA = {
   const floaters = [];
   const petals = [];       // 舞い散る桜の花びら（環境演出）
   let lastPetalAt = 0;
+  const dust = [];         // 闇にただよう金泥の塵（環境演出）
 
   function pickTier() {
     const total = SPAWN_WEIGHTS.reduce((a, b) => a + b, 0);
@@ -951,12 +993,12 @@ const FACE_DATA = {
         score += POINTS[nt];
         maxTier = Math.max(maxTier, nt);
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
-        burst(mx, my, TIERS[nt].color, 14);
+        goldBurst(mx, my, 14);
         sfxMerge(nt);
         if (nt === TIERS.length - 1) {
           // 満月成就の見せ場
-          addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#f2d98c");
-          burst(mx, my, "#f2d98c", 40);
+          addFloater(mx, my - TIERS[nt].r - 24, "満月成就", "#F0CE7E");
+          goldBurst(mx, my, 40);
           showCutin();
           sfxMoon();
           // 月光の浄化: 三段目までの小さな御霊を最大4体、カットイン中に消す
@@ -966,7 +1008,7 @@ const FACE_DATA = {
           for (const o of smalls) o.merging = true;
           if (smalls.length) pendingPurges.push({ bodies: smalls, at: performance.now() + 900 });
           flashUntil = performance.now() + 1400;
-          flashColor = "#f2d98c";
+          flashColor = "#F0CE7E";
         }
       }
       updateHud();
@@ -974,6 +1016,19 @@ const FACE_DATA = {
   });
 
   // ---- 演出 ----
+  // 金泥の粒: 「金は面で塗らず、粒で灯す」（公式トンマナ）
+  const GOLD_GRAINS = ["#F0CE7E", "#D9A94C", "#f6e5ae"];
+  function goldBurst(x, y, n) {
+    if (reducedMotion) n = Math.min(n, 4);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 3;
+      particles.push({
+        x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 1,
+        life: 1, color: GOLD_GRAINS[(Math.random() * GOLD_GRAINS.length) | 0],
+      });
+    }
+  }
   function burst(x, y, color, n) {
     if (reducedMotion) n = Math.min(n, 4);
     for (let i = 0; i < n; i++) {
@@ -1066,9 +1121,22 @@ const FACE_DATA = {
   }
 
   // ---- HUD ----
+  // スコアは表示値が実値を追いかけて回る（カウントアップ）。加点時に軽くポップ。
+  const scoreEl = document.getElementById("score");
+  let shownScore = 0;
   function updateHud() {
-    document.getElementById("score").textContent = score;
     document.getElementById("best").textContent = best;
+    if (score > shownScore) {
+      scoreEl.classList.remove("bump");
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add("bump");
+    }
+  }
+  function tickScore() {
+    if (shownScore === score) return;
+    if (score < shownScore) shownScore = score; // リトライ時は即リセット
+    else shownScore = Math.min(score, shownScore + Math.max(1, Math.ceil((score - shownScore) * 0.22)));
+    scoreEl.textContent = shownScore;
   }
   updateHud();
 
@@ -1083,10 +1151,10 @@ const FACE_DATA = {
     ctx.globalAlpha = 0.07;
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
-    ctx.fillStyle = "#f2d98c";
+    ctx.fillStyle = "#F0CE7E";
     ctx.fill();
     ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "#f2d98c";
+    ctx.strokeStyle = "#F0CE7E";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -1094,7 +1162,7 @@ const FACE_DATA = {
     if (f > 0) {
       ctx.globalAlpha = 0.32;
       if (f >= 1) {
-        ctx.shadowColor = "#f2d98c";
+        ctx.shadowColor = "#F0CE7E";
         ctx.shadowBlur = 40;
       }
       ctx.beginPath();
@@ -1102,7 +1170,7 @@ const FACE_DATA = {
       const rx = R * Math.abs(2 * f - 1);
       // f<0.5: 明暗の境界が右寄りに湾曲 / f>0.5: 左寄りに湾曲
       ctx.ellipse(cx, cy, rx, R, 0, Math.PI / 2, -Math.PI / 2, f <= 0.5);
-      ctx.fillStyle = "#f2d98c";
+      ctx.fillStyle = "#F0CE7E";
       ctx.fill();
     }
     ctx.restore();
@@ -1137,7 +1205,7 @@ const FACE_DATA = {
     // 縁の珠は金の玉に
     for (const x of [visL, visR]) {
       const kg = ctx.createRadialGradient(x - 3, CUP_TOP - 3, 2, x, CUP_TOP, WALL);
-      kg.addColorStop(0, "#f2d98c");
+      kg.addColorStop(0, "#F0CE7E");
       kg.addColorStop(1, "#8a744a");
       ctx.fillStyle = kg;
       ctx.beginPath();
@@ -1252,6 +1320,30 @@ const FACE_DATA = {
 
     drawMoon();
 
+    // 金の塵: 闇の中を金泥の粒がゆっくり昇る（粒で灯す）
+    if (!reducedMotion) {
+      if (dust.length < 18 && Math.random() < 0.06) {
+        dust.push({
+          x: 20 + Math.random() * (W - 40), y: H + 6,
+          vy: -(0.08 + Math.random() * 0.15), phase: Math.random() * Math.PI * 2,
+          size: 0.8 + Math.random() * 1.5, a: 0.10 + Math.random() * 0.22,
+        });
+      }
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        d.phase += 0.008;
+        d.x += Math.sin(d.phase) * 0.25;
+        d.y += d.vy;
+        if (d.y < -8) { dust.splice(i, 1); continue; }
+        ctx.globalAlpha = d.a * (0.65 + 0.35 * Math.sin(d.phase * 3));
+        ctx.fillStyle = "#F0CE7E";
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // 桜の花びら: ときどき舞い込んでゆっくり落ちる
     if (!reducedMotion && now - lastPetalAt > 2100 && petals.length < 7) {
       lastPetalAt = now;
@@ -1273,7 +1365,7 @@ const FACE_DATA = {
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#e8a7b8";
+      ctx.fillStyle = "#8E6B9E";
       ctx.beginPath();
       ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -1530,12 +1622,12 @@ const FACE_DATA = {
     while (pendingPurges.length && now >= pendingPurges[0].at) {
       const { bodies } = pendingPurges.shift();
       for (const o of bodies) {
-        burst(o.position.x, o.position.y, "#f2d98c", 10);
+        goldBurst(o.position.x, o.position.y, 10);
         score += POINTS[o.tier];
         World.remove(world, o);
       }
       if (bodies.length) {
-        addFloater(W / 2, 260, "月光の浄化", "#f2d98c");
+        addFloater(W / 2, 260, "月光の浄化", "#F0CE7E");
         updateHud();
       }
     }
@@ -1544,8 +1636,8 @@ const FACE_DATA = {
       World.remove(world, a);
       World.remove(world, b);
       score += 100;
-      addFloater(mx, my, "皆既月蝕 +100", "#e5647a");
-      burst(mx, my, "#e5647a", 50);
+      addFloater(mx, my, "皆既月蝕 +100", "#E0562F");
+      burst(mx, my, "#E0562F", 50);
       flashUntil = now + 900;
       flashColor = "#8a1f3d";
       updateHud();
@@ -1555,6 +1647,7 @@ const FACE_DATA = {
       checkGameOver(now);
     }
     updateNext();
+    tickScore();
     render(now);
     requestAnimationFrame(loop);
   }
