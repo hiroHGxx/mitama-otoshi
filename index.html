@@ -693,6 +693,10 @@
 // BGM は別ファイルを遅延ストリーミング（初回ロードを軽くするため）。
 // Artifact 用ビルドでは build-dist.js がこの定数を data URI に置換して単一ファイル化する。
 const BGM_DATA = "assets/audio/kitan_maintheme.m4a";
+// 琴の実サンプル（AI生成の琴独奏曲から切り出したワンショット）。
+// main は単音（基音 196.5Hz / G3）で音程を変えて使い回す。high は装飾フレーズで固定ピッチ再生専用。
+const KOTO_MAIN_DATA = "assets/audio/koto_pluck_main.m4a";
+const KOTO_HIGH_DATA = "assets/audio/koto_pluck_high.m4a";
 
 </script>
 <script>
@@ -924,6 +928,9 @@ const FACE_DATA = {
   bgm.volume = 0.16; // BGMは控えめに、効果音を主役にする
 
   let sfxBus = null; // 効果音のマスターゲイン
+  let kotoMainBuf = null; // 実サンプル琴（単音・基音 KOTO_MAIN_HZ）
+  let kotoHighBuf = null; // 実サンプル琴（高音の装飾フレーズ・固定ピッチ）
+  const KOTO_MAIN_HZ = 196.5;
   function initAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -932,6 +939,14 @@ const FACE_DATA = {
         sfxBus = audioCtx.createGain();
         sfxBus.gain.value = 0.9;
         sfxBus.connect(audioCtx.destination);
+        // 琴サンプルを非同期で読み込む。届くまでは合成音（Karplus-Strong）で代用
+        const load = (url, set) => fetch(url)
+          .then(r => r.arrayBuffer())
+          .then(ab => audioCtx.decodeAudioData(ab))
+          .then(set)
+          .catch(() => {});
+        load(KOTO_MAIN_DATA, b => { kotoMainBuf = b; });
+        load(KOTO_HIGH_DATA, b => { kotoHighBuf = b; });
       }
     }
   }
@@ -968,6 +983,42 @@ const FACE_DATA = {
     const oct = Math.floor(step / SCALE.length);
     const semi = SCALE[step % SCALE.length] + oct * 12;
     return 220 * Math.pow(2, semi / 12);
+  }
+  // 実サンプルの音域制限: 弦サンプルは4倍速を超えると楽器らしさが崩れるので、
+  // step 11（932Hz・変速率4.7）を上限に1オクターブ（5音）ずつ折り返す
+  function noteFreq(step) {
+    while (step > 11) step -= SCALE.length;
+    return scaleFreq(step);
+  }
+  // 琴の一音: 実サンプルを変速再生。届いていなければ合成弦で代用
+  function kotoPluck(freq, gain, delay) {
+    if (!audioCtx || !soundOn) return;
+    if (!kotoMainBuf) { playBuffer(pluckBuffer(freq), gain, delay); return; }
+    const t = audioCtx.currentTime + (delay || 0);
+    const rate = (freq / KOTO_MAIN_HZ) * (1 + (Math.random() - 0.5) * 0.008);
+    const mk = (r, gg) => {
+      const src = audioCtx.createBufferSource();
+      src.buffer = kotoMainBuf;
+      src.playbackRate.value = r;
+      const g = audioCtx.createGain();
+      g.gain.value = gg * (0.92 + Math.random() * 0.16); // 毎回の揺らぎで機械感を消す
+      src.connect(g).connect(sfxBus);
+      src.start(t);
+    };
+    mk(rate, gain);
+    if (rate > 2.5) mk(rate / 2, gain * 0.4); // 高音は下のオクターブを薄く重ねて痩せを防ぐ
+  }
+  // 高音の装飾フレーズ: 固定ピッチ（曲のキー→都節Aへ合わせる 220/196.5 ≒ 1.12）
+  function kotoKira(gain, delay) {
+    if (!audioCtx || !soundOn || !kotoHighBuf) return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const src = audioCtx.createBufferSource();
+    src.buffer = kotoHighBuf;
+    src.playbackRate.value = 1.12;
+    const g = audioCtx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(sfxBus);
+    src.start(t);
   }
   // 拍子木: 短いノイズを高めの帯域だけ通す
   function woodblock(delay) {
@@ -1027,15 +1078,16 @@ const FACE_DATA = {
     // 連鎖中は陰旋法のまま音階を駆け上がる
     if (!audioCtx) return;
     const up = Math.min(((chain || 1) - 1) * 2, 8);
-    playBuffer(pluckBuffer(scaleFreq(tier + up)), 0.9);
-    playBuffer(pluckBuffer(scaleFreq(tier + up + 2)), 0.5, 0.06);
-    if (chain >= 2) playBuffer(pluckBuffer(scaleFreq(tier + up + 4)), 0.35, 0.12);
+    kotoPluck(noteFreq(tier + up), 0.9);
+    kotoPluck(noteFreq(tier + up + 2), 0.5, 0.06);
+    if (chain >= 2) kotoPluck(noteFreq(tier + up + 4), 0.35, 0.12);
+    if (chain >= 3) kotoKira(0.3, 0.15); // 大連鎖には実録の装飾句を薄く添える
   };
   const sfxMoon = () => {
     // 琴のかき鳴らし＋高音のきらめき（太鼓・鐘は皆既月蝕専用にする）
     if (!audioCtx) return;
-    [0, 2, 4, 5, 7].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s + 5)), 0.7, i * 0.09));
-    [0, 2, 4].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s + 10)), 0.4, 0.55 + i * 0.12));
+    [0, 2, 4, 5, 7].forEach((s, i) => kotoPluck(noteFreq(s + 5), 0.7, i * 0.09));
+    kotoKira(0.5, 0.55);
   };
   // 風のうねり: ノイズをバンドパスに通して持ち上げる
   function windRise(dur, delay) {
@@ -1087,14 +1139,14 @@ const FACE_DATA = {
     woodblock(0);
     woodblock(0.18);
     // 不穏な下降フレーズ
-    [9, 7, 5, 4, 2].forEach((s, i) => playBuffer(pluckBuffer(scaleFreq(s)), 0.8, 0.4 + i * 0.11));
+    [9, 7, 5, 4, 2].forEach((s, i) => kotoPluck(scaleFreq(s), 0.8, 0.4 + i * 0.11));
     // 重い低弦の二連（オクターブ重ねで太さを出す）
-    playBuffer(pluckBuffer(scaleFreq(0)), 1.0, 1.05);
-    playBuffer(pluckBuffer(scaleFreq(0) / 2), 1.0, 1.07);
-    playBuffer(pluckBuffer(scaleFreq(1)), 0.95, 1.45);
-    playBuffer(pluckBuffer(scaleFreq(1) / 2), 0.95, 1.47);
+    kotoPluck(scaleFreq(0), 1.0, 1.05);
+    kotoPluck(scaleFreq(0) / 2, 1.0, 1.07);
+    kotoPluck(scaleFreq(1), 0.95, 1.45);
+    kotoPluck(scaleFreq(1) / 2, 0.95, 1.47);
     // 締めの一撃（高音）
-    playBuffer(pluckBuffer(scaleFreq(10)), 0.7, 1.85);
+    kotoPluck(scaleFreq(10), 0.7, 1.85);
   };
 
   function applySound() {
