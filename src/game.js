@@ -99,6 +99,37 @@
   // ---- 状態 ----
   let started = false;       // タイトル画面の「月夜に入る」を押すまで false
   let pausedUntil = 0;       // カットイン等の演出中は物理を止める
+  // 御霊図鑑: 公式の公開設定（kitan-lore MCPより。よみ・所属/五行・紹介文）
+  const SPIRIT_INFO = {
+    nemu:     { kana: "ねむ",     copy: "眠たげな猫の絵師。筆が走れば、極彩色が目を覚ます。" },
+    oto:      { kana: "おと",     copy: "垂れ耳の月兎。その笑顔は満月より明るく、その拳は地を揺らす。" },
+    anne:     { kana: "あんね",   copy: "赤いマフラーの看板娘。団子と笑顔で、夜と人の縁を結ぶ。" },
+    nekomata: { kana: "ねこまた", copy: "妖刀村正を飼い慣らす化け猫の剣客。二太刀は無駄、急所に一太刀。" },
+    benten:   { kana: "べんてん", copy: "川端の弁天堂に唄を奉じる、水辺の唄い手。三味線ひとつで、忘れられた唄を今宵も。" },
+    uka:      { kana: "うか",     copy: "九つの尾に焔を灯す金狐。姉譲りの神通を、まだ持て余している。" },
+    izuna:    { kana: "いずな",   copy: "黒狐の巫女。その神通は傷を癒し、夜すら宥める。" },
+    shion:    { kana: "しおん",   copy: "影に咲く夜叉薊。言葉は少なく、刃は深く。" },
+    sakuya:   { kana: "さくや",   copy: "緋桜を纏う甲賀の剣士。ひと太刀ごとに、夜へ春が散る。" },
+  };
+  const TIER_TAGS = ["甲賀・水", "甲賀・土", "伊賀・木", "雑賀・金", "雑賀・水", "甲賀・火", "甲賀・金", "伊賀・木", "甲賀・火", "階梯の果て"];
+  const MOON_INFO = { kana: "まんげつ", copy: "御霊を重ねた先に生まれる、喰われた月の還り姿。ふたつ重なれば——皆既月蝕。" };
+
+  // 称号: そのプレイの最高到達で決まる（皆既月蝕は別格）
+  const TITLES = [
+    "宵の口",
+    "夜歩きの見習い",
+    "夜歩きの手習い",
+    "浄化の手練れ",
+    "浄夜の導き手",
+    "五行の使い手",
+    "夜番の頭",
+    "月導の行者",
+    "緋桜の同志",
+    "満月成就",
+  ];
+  const ECLIPSE_TITLE = "蝕を見届けた者";
+  let eclipseThisRun = false;
+
   const pendingEclipses = []; // 皆既月蝕: 月×2を触れ合ったまま見せてから消す
   const pendingPurges = [];   // 月光の浄化: 満月誕生時に小さな御霊を消す
   let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
@@ -411,7 +442,7 @@
         const nb = spawnBody(nt, mx, my);
         nb.mergeLockUntil = performance.now() + MERGE_LOCK_MS;
         score += POINTS[nt];
-        maxTier = Math.max(maxTier, nt);
+        if (nt > maxTier) { maxTier = nt; recordDexMax(); }
         addFloater(mx, my - TIERS[nt].r, "+" + POINTS[nt], TIERS[nt].color);
         goldBurst(mx, my, 14);
         const nowMs = performance.now();
@@ -518,7 +549,7 @@
       if (b.tier !== undefined) World.remove(world, b);
     }
     score = 0; maxTier = 0; gameOver = false; overSince = 0;
-    chainBanner = null; moonOnBoard = false;
+    chainBanner = null; moonOnBoard = false; eclipseThisRun = false;
     currentTier = pickTier(); nextTier = pickTier(); canDrop = true;
     document.getElementById("overlay").classList.remove("show");
     updateHud();
@@ -548,6 +579,9 @@
     gameOver = true;
     best = Math.max(best, score);
     try { localStorage.setItem("mitama_best", best); } catch (e) {}
+    recordDexMax();
+    saveBestTitle();
+    document.getElementById("final-title").textContent = currentTitle();
     document.getElementById("final-score").textContent = score;
     document.getElementById("final-tier").textContent = "頂：" + TIERS[maxTier].name;
     const fudaKey = TIERS[maxTier].key || "sakuya"; // 満月到達時は咲耶の札
@@ -557,6 +591,101 @@
     document.getElementById("overlay").classList.add("show");
     updateHud();
   }
+
+  // ---- 御霊図鑑 ----
+  // 出現抽選に入る1〜5段は最初から閲覧可。6段以上は到達した段位まで解禁（localStorageに永続）
+  let dexMax = 4;
+  try { dexMax = Math.max(4, +(localStorage.getItem("mitama_dex_max") || 4)); } catch (e) {}
+  function recordDexMax() {
+    if (maxTier > dexMax) {
+      dexMax = maxTier;
+      try { localStorage.setItem("mitama_dex_max", dexMax); } catch (e) {}
+    }
+  }
+  let dexOpen = false;
+  let dexIndex = 0;
+  const dexEls = {
+    box: document.getElementById("dex"),
+    fuda: document.getElementById("dex-fuda"),
+    moon: document.getElementById("dex-moon"),
+    name: document.getElementById("dex-name"),
+    tag: document.getElementById("dex-tag"),
+    copy: document.getElementById("dex-copy"),
+    prev: document.getElementById("dex-prev"),
+    next: document.getElementById("dex-next"),
+  };
+  function renderDex() {
+    const t = TIERS[dexIndex];
+    const unlocked = dexIndex <= dexMax;
+    const isMoon = !t.key;
+    dexEls.fuda.style.display = isMoon ? "none" : "block";
+    dexEls.moon.style.display = isMoon ? "block" : "none";
+    if (isMoon) {
+      dexEls.moon.classList.toggle("locked", !unlocked);
+    } else {
+      dexEls.fuda.src = FUDA_ART[t.key];
+      dexEls.fuda.classList.toggle("locked", !unlocked);
+    }
+    if (unlocked) {
+      const info = isMoon ? MOON_INFO : SPIRIT_INFO[t.key];
+      dexEls.name.innerHTML = "";
+      dexEls.name.append(t.name);
+      const small = document.createElement("small");
+      small.textContent = info.kana;
+      dexEls.name.append(small);
+      dexEls.tag.textContent = TIER_TAGS[dexIndex];
+      dexEls.copy.textContent = info.copy;
+    } else {
+      dexEls.name.textContent = "？？？";
+      dexEls.tag.textContent = "";
+      dexEls.copy.textContent = "この御霊には、まだ出会っていない。階梯を重ねて、夜の先へ。";
+    }
+    dexEls.prev.disabled = dexIndex === 0;
+    dexEls.next.disabled = dexIndex === TIERS.length - 1;
+  }
+  function openDex(i) {
+    dexIndex = i;
+    dexOpen = true;
+    renderDex();
+    dexEls.box.classList.add("show");
+  }
+  function closeDex() {
+    dexOpen = false;
+    dexEls.box.classList.remove("show");
+  }
+  document.getElementById("dex-close").addEventListener("click", closeDex);
+  dexEls.box.addEventListener("click", (e) => { if (e.target === dexEls.box) closeDex(); });
+  dexEls.prev.addEventListener("click", () => { if (dexIndex > 0) { dexIndex--; renderDex(); } });
+  dexEls.next.addEventListener("click", () => { if (dexIndex < TIERS.length - 1) { dexIndex++; renderDex(); } });
+
+  // ---- 称号 ----
+  function currentTitle() {
+    return eclipseThisRun ? ECLIPSE_TITLE : TITLES[maxTier];
+  }
+  function saveBestTitle() {
+    // 序列: 皆既月蝕(=10) > 段位。より高い誉れだけ上書き
+    const rank = eclipseThisRun ? 10 : maxTier;
+    try {
+      const prev = +(localStorage.getItem("mitama_title_rank") || -1);
+      if (rank > prev) {
+        localStorage.setItem("mitama_title_rank", rank);
+        localStorage.setItem("mitama_title", currentTitle());
+      }
+    } catch (e) {}
+  }
+  // タイトル画面: これまでの誉れ
+  try {
+    const bt = localStorage.getItem("mitama_title");
+    if (bt) {
+      const el = document.getElementById("best-title");
+      el.hidden = false;
+      el.innerHTML = "";
+      el.append("これまでの誉れ：");
+      const em = document.createElement("em");
+      em.textContent = bt;
+      el.append(em);
+    }
+  } catch (e) {}
 
   // ---- HUD ----
   // スコアは表示値が実値を追いかけて回る（カウントアップ）。加点時に軽くポップ。
@@ -985,6 +1114,7 @@
       }
       el.style.width = el.style.height = size + "px";
       el.style.borderColor = t.color;
+      el.addEventListener("click", () => openDex(i));
       ladder.appendChild(el);
     });
   }
@@ -1138,13 +1268,14 @@
       World.remove(world, a);
       World.remove(world, b);
       score += 100;
+      eclipseThisRun = true;
       addFloater(mx, my, "皆既月蝕 +100", "#E0562F");
       burst(mx, my, "#E0562F", 50);
       flashUntil = now + 900;
       flashColor = "#8a1f3d";
       updateHud();
     }
-    if (now >= pausedUntil) {
+    if (now >= pausedUntil && !dexOpen) {
       Engine.update(engine, dt);
       checkGameOver(now);
     }

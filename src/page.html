@@ -484,6 +484,113 @@
     cursor: pointer;
   }
   #start-silent:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+  /* 御霊図鑑（羽二重: 縁なし・放射光の凸面・深い影） */
+  #dex {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 20, .72);
+    z-index: 12;
+  }
+  #dex.show { display: flex; }
+  .dex-card {
+    position: relative;
+    background: radial-gradient(circle at 50% -60%, rgba(36, 32, 62, .95), rgba(24, 20, 50, .95) 42%, rgba(17, 15, 30, .95));
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .70), 0 4px 14px rgba(0, 0, 0, .50);
+    padding: 24px 22px 22px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(92vw, 380px);
+    box-sizing: border-box;
+  }
+  #dex-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink-dim);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .dex-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .dex-nav button {
+    font-family: inherit;
+    font-size: 26px;
+    line-height: 1;
+    width: 36px;
+    height: 56px;
+    color: var(--moon);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .dex-nav button:disabled { color: #4a4468; }
+  .dex-imgwrap {
+    width: min(52vw, 210px);
+    height: min(78vw, 315px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #dex-fuda {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 10px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, .55);
+  }
+  #dex-fuda.locked { filter: brightness(.12) grayscale(1); }
+  #dex-moon {
+    display: none;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 34%, #fff3c8, #e8c96a);
+    box-shadow: 0 0 42px rgba(240, 206, 126, .45);
+  }
+  #dex-moon.locked { background: radial-gradient(circle at 36% 34%, #2a2742, #17142a); box-shadow: none; }
+  #dex-name {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: .22em;
+    color: var(--moon);
+  }
+  #dex-name small {
+    margin-left: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    color: var(--ink-dim);
+  }
+  #dex-tag { font-size: 11px; letter-spacing: .22em; color: var(--ink-dim); margin-top: -6px; }
+  #dex-copy {
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: var(--ink);
+    min-height: 3.8em;
+  }
+  #ladder img, #ladder .moon-tier { cursor: pointer; }
+  /* 称号 */
+  #final-title-label { font-size: 10px; letter-spacing: .25em; color: var(--ink-dim); }
+  #final-title { font-size: 17px; font-weight: 800; letter-spacing: .2em; color: var(--moon); margin-top: 2px; }
+  #best-title { font-size: 10px; letter-spacing: .14em; color: var(--ink-dim); margin-top: -4px; }
+  #best-title em { font-style: normal; color: var(--moon); }
   footer {
     width: 100%;
     text-align: center;
@@ -526,6 +633,7 @@
     <svg class="shokkan" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="#C93A2E" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)"/></svg>
     <div class="game-title">御霊おとし</div>
     <div class="game-sub">— 月蝕綺譚 -Luna Occulta- 二次創作 —</div>
+    <div id="best-title" hidden></div>
     <ul class="howto">
       <li>なぞって狙い、離して落とす</li>
       <li>同じ御霊が触れると浄化され、次の御霊へ</li>
@@ -544,11 +652,29 @@
     <div class="sub">壺から御霊があふれてしまった</div>
     <img id="final-fuda" alt="到達した御霊の札絵">
     <div>
+      <div id="final-title-label">称号</div>
+      <div id="final-title"></div>
+    </div>
+    <div>
       <div class="score-label">SCORE</div>
       <div id="final-score">0</div>
       <div id="final-tier"></div>
     </div>
     <button id="retry">もう一夜</button>
+  </div>
+</div>
+
+<div id="dex">
+  <div class="dex-card">
+    <button id="dex-close" aria-label="図鑑を閉じる">✕</button>
+    <div class="dex-nav">
+      <button id="dex-prev" aria-label="前の御霊">‹</button>
+      <div class="dex-imgwrap"><img id="dex-fuda" alt="御霊の札絵"><div id="dex-moon"></div></div>
+      <button id="dex-next" aria-label="次の御霊">›</button>
+    </div>
+    <div id="dex-name"></div>
+    <div id="dex-tag"></div>
+    <div id="dex-copy"></div>
   </div>
 </div>
 
