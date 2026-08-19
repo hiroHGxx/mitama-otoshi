@@ -57,3 +57,40 @@
 - **カットインの再生リセット**はアニメwebpの img 要素を cloneNode で作り直すのが確実
 - **実機で聞こえる音設計**: モバイルは「倍音で聞かせる」。合成音は KS 弦・帯域ノイズ打楽器が鉄板
 - **配信は単一ファイル＋遅延アセット**が、更新頻度の高い個人開発ゲームのウェブ配信で最も事故らない
+
+---
+
+## 7. 【2026-08-19】わいわいタウン掲載・公式MCP活用・リッチ化・PV制作
+
+この日も全工程リモートコントロール（スマホ指示のみ）。詳細な実装仕様は SPEC.md 参照。
+
+### わいわいタウン（waiwai.town）掲載
+
+- CryptoNinja系ファンゲームポータル。Discordログイン（NinjaDAO/明鏡ロール保持者は即公開、他はAI審査1〜2日）。申請にはXアカウント登録（マイページ）とサムネが必要
+- サムネ5箇条: 正方形フルブリード・文字なし・主役1体大きく・中身にある絵・タイル壁に溶けない色。**サムネ差し替えはコンテンツ更新とセット**（7日後にCTR前後比較が届く）
+- プレビュー動画（タイルhover再生）: MP4 H.264・10MB・5〜15秒・無音。**冒頭からプレー画面**が正解（hover視聴は最初の1-2秒が勝負）
+- 番付は直近7日の閲覧・遷移・プレイで変動 → X告知と連動させる
+- サイト内プレイはGitHub Pagesのiframe埋め込み（X-Frame-Options を付けないこと）。localStorage は try/catch 必須
+- REST/MCP APIあり（/devs）。作品の編集・削除はマイページから
+
+### 公式MCPサーバーの活用（kitan-lore / cn-lore）
+
+- `claude mcp add --transport http kitan-lore https://kitan-lore-mcp.nubonba.workers.dev/mcp`（cn-lore も同様）。無料・認証不要
+- **get_design_tone が宝**: 公式アプリの実装トークン（色hex・書体・角丸・影・アニメ数値）がそのまま取れる。「宵闇に金」のパレット・蝕環・羽二重をこれに基づき適用
+- list_spirits/get_spirit: よみ・所属/五行・紹介文・口調（一人称/語尾/セリフ見本）。図鑑と五行環の裏取りに使用
+- list_assets/get_asset: 素材蔵749点の台帳。**札絵は各キャラ01〜10の10段階**（ゲームはランク10を採用）、**カットインは各キャラ5種・咲耶15種**。URLパスは fuda/・fuda/app/・v2/・v3/ が混在するため台帳のurl必須
+- curlで直接叩く場合: initialize→Mcp-Session-Idヘッダ→notifications/initialized→tools/call（SSE応答）
+
+### リッチ化で得た教訓
+
+- **canvasの既存パス使い回しに図形を差し込むときは beginPath でパスを引き直す**（満月の後光挿入で本体が1.45倍に描かれるバグ）
+- **連鎖判定は因果ベース（provenance）が正解**: 時間窓カウントはタップ連打を誤検出する。合体で生まれた玉に chainDepth を継承させ、熱いうち（1.6s）の合体だけ連鎖に
+- カットインの絵の向きとスライド方向を合わせる（右向きの絵は左→右）
+- 公式トンマナ適用は「地色・金の使い方・禁止事項（ピンク/白背景/虹）」から順に。蝕紅は面積5%以下が効く
+
+### 動画制作パイプライン（プレビュー動画・PV）
+
+- **録画**: puppeteer-core + CDP Page.startScreencast（headless=new はrAFが正常に走る）。ドロップ座標はcanvasのgetBoundingClientRectから論理座標換算。隠し機能（ロゴ3タップ=咲耶召喚）で皆既月蝕まで振り付け
+- **組み立て**: フレーム＋実タイムスタンプ→ffmpeg concat demuxer（duration指定）→ h264/yuv420p
+- **PV（ツキオニPVを分析して型を踏襲）**: シネマ→実機→見せ場→札絵総見せ→CTAエンドカード。カードはHTML+Google Fonts→puppeteerスクショ（透過はomitBackground）、静止画の動きはffmpeg zoompan（2倍スケール後に適用）、BGMはafadeで尺に同期。scripts/pv/assemble.sh 参照
+- **ffmpegの罠**: 静止画オーバーレイにfade alphaを使うなら `-loop 1` 必須（単フレームだとfade開始前のalpha=0で固定される）。zshは変数を単語分割しないので複数フラグは `${=V}`。演出フェードをまたぐ切り出しはフレーム単位で透けを確認
