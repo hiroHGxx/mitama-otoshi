@@ -5,7 +5,11 @@
 #   - s1.png / s6.png / telop.png / m_copy.png / m_*.png … render-cards.js の出力
 # 使い方:
 #   cd 作業ディレクトリ && npm i puppeteer-core
-#   node capture-pv.js && node render-cards.js && zsh assemble.sh
+#   zsh make-montage.sh <repo絶対パス>       # m_*.html を生成
+#   node capture-pv.js                        # frames/ + frames/list.txt を出力
+#   ffmpeg -y -f concat -safe 0 -i frames/list.txt -vf "fps=30,scale=720:1280" \
+#          -c:v libx264 -crf 20 -pix_fmt yuv420p -r 30 gameplay.mp4
+#   node render-cards.js && zsh assemble.sh
 #
 # カット点はgameplay.mp4の内容に依存する。フレームを見て以下を調整すること:
 #   PLAY_SS/PLAY_T   … 積み上げプレイ（1〜5段の自然な合体）
@@ -15,7 +19,7 @@
 set -e
 V="-c:v libx264 -crf 20 -pix_fmt yuv420p -r 30"
 PLAY_SS=1.8;  PLAY_T=6.2
-CUTIN_SS=9.3; CUTIN_T=2.8
+CUTIN_SS=9.15; CUTIN_T=1.85
 ECL_SS=17.15; ECL_T=2.15
 BGM="../../assets/audio/kitan_maintheme.m4a"
 

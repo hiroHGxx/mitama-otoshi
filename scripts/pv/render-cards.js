@@ -7,7 +7,7 @@ const path = require("path");
     defaultViewport: { width: 720, height: 1280 },
   });
   const page = await browser.newPage();
-  const jobs = [["s1", false], ["telop", true], ["s6", false],
+  const jobs = [["s1", false], ["telop", true], ["s6", false], ["m_copy", true],
     ...["nemu","oto","anne","nekomata","benten","uka","izuna","shion","sakuya"].map(k => [`m_${k}`, false])];
   for (const [name, transparent] of jobs) {
     await page.goto("file://" + path.join(__dirname, name + ".html"), { waitUntil: "networkidle0" });
