@@ -1,6 +1,6 @@
 #!/bin/zsh
 # 札絵モンタージュ用HTML（m_*.html）を生成する。REPO は絶対パスで指定。
-REPO="${1:-/Users/USER/Documents/user/Products/game/mitama-otoshi}"
+REPO="${1:-/Users/USER/Documents/user/Products/kitan-works/mitama-otoshi}"
 for k in nemu oto anne nekomata benten uka izuna shion sakuya; do
 cat > "m_$k.html" << EOF2
 <!doctype html><meta charset="utf-8">
