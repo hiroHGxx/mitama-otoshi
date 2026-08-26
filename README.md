@@ -28,7 +28,7 @@
 ## 開発
 
 ```bash
-# 顔アイコン（assets/faces/*.png）を data URI 化して src/faces.js を生成
+# 公式配布の顔アイコンを取得し、段位ごとの実寸に縮めて src/faces.js を生成
 ./scripts/build-faces.sh
 
 # 単一ファイル版を dist/ に生成（index.html / artifact.html）

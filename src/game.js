@@ -188,6 +188,19 @@
   let kotoMainBuf = null; // 実サンプル琴（単音・基音 KOTO_MAIN_HZ）
   let kotoHighBuf = null; // 実サンプル琴（高音の装飾フレーズ・固定ピッチ）
   const KOTO_MAIN_HZ = 196.5;
+  // 音源のバイト列を取り出す。Artifact 版は build-dist.js が音源を data URI に埋め込むが、
+  // Artifact の CSP は data: への fetch を止めるため、そのままでは実サンプルが届かず
+  // 琴が合成音のフォールバックのまま鳴り続けてしまう。data: のときは atob で自前に復号する。
+  function fetchBytes(url) {
+    if (!url.startsWith("data:")) return fetch(url).then(r => r.arrayBuffer());
+    // 復号はタップの処理を止めないよう次のタスクへ回す
+    return Promise.resolve().then(() => {
+      const bin = atob(url.slice(url.indexOf(",") + 1));
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr.buffer;
+    });
+  }
   function initAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -197,8 +210,7 @@
         sfxBus.gain.value = 0.9;
         sfxBus.connect(audioCtx.destination);
         // 琴サンプルを非同期で読み込む。届くまでは合成音（Karplus-Strong）で代用
-        const load = (url, set) => fetch(url)
-          .then(r => r.arrayBuffer())
+        const load = (url, set) => fetchBytes(url)
           .then(ab => audioCtx.decodeAudioData(ab))
           .then(set)
           .catch(() => {});

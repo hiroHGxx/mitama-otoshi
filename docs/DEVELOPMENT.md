@@ -94,3 +94,24 @@
 - **組み立て**: フレーム＋実タイムスタンプ→ffmpeg concat demuxer（duration指定）→ h264/yuv420p
 - **PV（ツキオニPVを分析して型を踏襲）**: シネマ→実機→見せ場→札絵総見せ→CTAエンドカード。カードはHTML+Google Fonts→puppeteerスクショ（透過はomitBackground）、静止画の動きはffmpeg zoompan（2倍スケール後に適用）、BGMはafadeで尺に同期。scripts/pv/assemble.sh 参照
 - **ffmpegの罠**: 静止画オーバーレイにfade alphaを使うなら `-loop 1` 必須（単フレームだとfade開始前のalpha=0で固定される）。zshは変数を単語分割しないので複数フラグは `${=V}`。演出フェードをまたぐ切り出しはフレーム単位で透けを確認
+
+## 8. 【2026-08-26】式札かさねからの移植2件
+
+第2弾『式札かさね』で先に解いた2つを、こちらへ戻した。
+
+### 顔アイコンを公式配布のちびアイコンへ
+
+- 公式MCP `get_spirit` の sheets に「顔アイコン(透過)」が追加された（`https://vibe.co.jp/luna-occulta/media/img/canon/<id>_icon.webp`・1024²）。
+  これで正典ちびシートからの切り出し（旧 `scripts/crop-faces.sh`・キャラごとにクロップ位置を手で校正、弁天だけ隣の立ち絵の写り込みをcanvasで白塗り）が丸ごと不要になった
+- 切り出し版は頭の上で切れていた**獣耳・簪が全部フレームに入る**ようになり、背景が透過なので玉の象牙色の地となじむ（旧版は白い正方形が円の中で浮いていた）
+- **段位ごとにサイズを変える**のがこのゲーム固有の勘所。玉は r=18〜90 と幅があり、canvas の裏地は盤面480px固定×dpr上限2なので、玉が使う画素は最大でも r*4。
+  一律サイズだと小玉が無駄に重く大玉は足りない。`scripts/build-faces.sh` の `SIZES` が段位と対応している（TIERS を変えたらここも変える）
+- 縮小PNGは `assets/faces/` にも残す（`scripts/ogp-card.html` がここを読む）。faces.js 544KB→737KB / artifact.html 14.23MB→14.42MB（上限16MB）
+
+### Artifact で琴が合成音のままだった（CSPの罠）
+
+- Artifact 版は `build-dist.js` が音源を data URI に埋め込むが、**Artifact の CSP は `data:` への fetch を止める**。
+  琴の読み込みは失敗を `.catch(() => {})` で握りつぶして合成音にフォールバックする作りだったため、**エラーも出ず、ずっと合成音で鳴っていた**
+- `fetchBytes()` を挟み、`data:` のときは `atob()` で自前に復号してから `decodeAudioData` に渡す。詳細は [kitan-works/docs/RELEASE.md](../../docs/RELEASE.md) の「Artifact プレビューの CSP」
+- 検証は Artifact 相当の CSP（`connect-src 'none'`）を被せた artifact.html で `decodeAudioData` を覗く方式。
+  **修正前のコードに戻した版も同じ検証にかけて 0/2 になることまで確かめた**（握りつぶす作りは、テストが素通りしても気づけないため）
