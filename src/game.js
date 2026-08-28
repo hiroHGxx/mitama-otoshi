@@ -463,6 +463,7 @@
   // ロック中に接触したペアも拾えるよう collisionActive（接触継続）でも判定する。
   const MERGE_LOCK_MS = 230;
   function tryMerge(ev) {
+    if (gameOver) return; // 夜が明けたら合体も止める（記録を追い越させない）
     const now = performance.now();
     for (const pair of ev.pairs) {
       const a = pair.bodyA, b = pair.bodyB;
@@ -637,6 +638,22 @@
 
   function endGame() {
     gameOver = true;
+    // あふれる直前に成立した浄化・皆既月蝕を先に清算してから記録を確定する。
+    // 保留のまま凍らせると、プレイヤーが勝ち取った点を取り上げることになる。
+    while (pendingPurges.length) {
+      const { bodies } = pendingPurges.shift();
+      for (const o of bodies) {
+        score += POINTS[o.tier];
+        World.remove(world, o);
+      }
+    }
+    while (pendingEclipses.length) {
+      const { a, b } = pendingEclipses.shift();
+      World.remove(world, a);
+      World.remove(world, b);
+      score += 100;
+      eclipseThisRun = true; // 称号「蝕を見届けた者」もここで確定する
+    }
     best = Math.max(best, score);
     try { localStorage.setItem("mitama_best", best); } catch (e) {}
     recordDexMax();
@@ -751,8 +768,18 @@
   // スコアは表示値が実値を追いかけて回る（カウントアップ）。加点時に軽くポップ。
   const scoreEl = document.getElementById("score");
   let shownScore = 0;
+  // 階梯の現在地: 到達済みに reached・最高到達に current を付ける。
+  // ボタンの実体は下の「進化の階梯」で作り、この配列に貯める。
+  const ladderBtns = [];
+  function updateLadder() {
+    for (let i = 0; i < ladderBtns.length; i++) {
+      ladderBtns[i].classList.toggle("reached", i <= maxTier);
+      ladderBtns[i].classList.toggle("current", i === maxTier);
+    }
+  }
   function updateHud() {
     document.getElementById("best").textContent = best;
+    updateLadder();
     if (score > shownScore) {
       scoreEl.classList.remove("bump");
       void scoreEl.offsetWidth;
@@ -1174,9 +1201,17 @@
       }
       el.style.width = el.style.height = size + "px";
       el.style.borderColor = t.color;
-      el.addEventListener("click", () => openDex(i));
-      ladder.appendChild(el);
+      // アイコン自体は段位ごとに大きさが変わる意匠なので、押し所は button 側で確保する
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ladder-btn";
+      btn.setAttribute("aria-label", t.name + "の図鑑を開く");
+      btn.addEventListener("click", () => openDex(i));
+      btn.appendChild(el);
+      ladder.appendChild(btn);
+      ladderBtns.push(btn);
     });
+    updateLadder();
   }
 
   // ---- 札絵（タイトル背景・カットイン・結果画面） ----
@@ -1196,6 +1231,9 @@
     img.onerror = showCard;
     img.src = FUDA_ART[bgKey];
     ov.addEventListener("pointerdown", showCard);  // タップで飛ばす
+    // 札絵の読み込みを待つ間、押せるものが画面に無い時間が2.87秒あった（UT 2026-08-28 R-3）。
+    // 案内カードを薄く先出しして、入口だけは最初から押せるようにする。
+    setTimeout(() => ov.classList.add("peek"), 300);
     setTimeout(showCard, 5000);                    // 読み込みが遅い場合の保険
   }
   function showCutin() {
@@ -1287,9 +1325,12 @@
     const waiter = setInterval(() => {
       if (!started) return;
       clearInterval(waiter);
+      // 左右に置くだけでは2体が触れる保証が無く、先にできた満月に阻まれて
+      // 離れたまま止まる（UT 2026-08-28 R-5）。内向きの初速で必ず寄せる。
+      // y=280 は、床に着いた満月（上端 y=479）に重なって湧かない高さ。
       const pair = () => {
-        spawnBody(8, CUP_L + 102, 260);
-        spawnBody(8, CUP_R - 102, 260);
+        spawnBody(8, CUP_L + 94, 280, 6, 0);
+        spawnBody(8, CUP_R - 94, 280, -6, 0);
       };
       setTimeout(pair, 800);
       setTimeout(pair, 6500);
@@ -1335,7 +1376,9 @@
       flashColor = "#8a1f3d";
       updateHud();
     }
-    if (now >= pausedUntil && !dexOpen) {
+    // 夜が明けたら盤面は止める。物理も合体も動いたままだと、結果カードで凍らせた得点を
+    // ヘッダーが追い越して、同じ画面に別々の数字が出る（UT 2026-08-28 R-1）。
+    if (now >= pausedUntil && !dexOpen && !gameOver) {
       Engine.update(engine, dt);
       checkGameOver(now);
     }
