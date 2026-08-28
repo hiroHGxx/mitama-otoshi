@@ -1,0 +1,78 @@
+# 御霊おとし — ユーザーテスト設定（目付）
+#
+# 目的: 「作った本人が操作の正解を知っているせいで見えない詰まり」を、初見の条件で洗い出す。
+#       この作品は kitan-works/docs/RELEASE.md の公開前チェックリスト（単一HTML・localStorage・
+#       OGP・noreply）だけを通して 2026-08-18 に公開した。技術面の検品はあるが、
+#       「初見の人が遊べるか」を見る工程が無いまま公開されている。そこを埋める。
+#
+# このプロジェクト固有の事情:
+#   - 対象は canvas ゲーム。盤面（Matter.js の物理）は DOM に出ないので、
+#     観察の証拠は「スクリーンショット」と「window 経由で読める内部状態」の2本立てになる。
+#   - 画面遷移は URL では起きない（単一ページの上でオーバーレイが開閉する）。
+#     観察の「画面名」は overlay の id で書く: title-overlay / (盤面) / dex / overlay(夜明け) / cutin / eclipse
+#   - **localStorage がオーナーの実記録**（mitama_best・mitama_dex_max・mitama_title_rank・
+#     mitama_title・mitama_sound）。本番 origin（github.io）で遊ぶと、オーナーの最高得点・
+#     図鑑の解禁状態・称号が書き換わる。よって **UT は本番 origin では行わず、ローカルの
+#     静的サーバー（別 origin ＝ localStorage が独立）で行う**。これが「初見の状態」でもある。
+#   - 課金・送信・外部影響は無い（このゲームは通信をしない。フォントと BGM は同梱／CDN のみ）。
+#     破壊できるものが localStorage しか無いので、テストデータ接頭辞の出番も無い。
+
+version: "2.0"
+
+project:
+  name: "御霊おとし（みたまおとし）"
+  type: "browser-game"
+  root: "."
+
+test:
+  mode: "hybrid"
+  environment: "local"
+  base_url: "http://127.0.0.1:8971/"   # このリポジトリを python3 -m http.server で配信したもの
+  # 参考: 本番 https://hirohgxx.github.io/mitama-otoshi/ ／ Artifact配布版 dist/artifact.html
+  participant_profile: "スマホ／PCのブラウザでリンクを踏んで初めて来た人。『月蝕綺譚』を知らない可能性もある。スイカゲーム式の落ち物パズルを遊んだことはあるかもしれないが、本作の固有ルール（浄化・連鎖・皆既月蝕・図鑑・称号）は知らない"
+  participant_count: 1
+  moderator: "qa"        # 検品担当（結）。観察のみ。解釈は入れない
+  locale: "ja-JP"
+
+sources:
+  requirements:
+    - "docs/SPEC.md"          # 実装仕様＝受入判定の正本
+    - "README.md"             # 外向けの説明（遊び方の記述はここが初見の人の入口）
+  design:
+    - "src/page.html"         # DOM とスタイルの実体
+    - "src/game.js"           # 進行・入力・演出
+    - "docs/DEVELOPMENT.md"
+  change_sources: ["git"]
+  requirement_id_pattern: ""  # 要件IDの体系は無い。SPEC.md の節番号（§2 §3 …）で追う
+
+artifacts:
+  root: "docs/ut"
+  format: "html"
+  create_participant_view: true
+  create_moderator_view: true
+
+execution:
+  order: ["non-mutating", "reversible-mutation", "irreversible-or-external-effect"]
+  allow_production_mutation: false   # 本番 origin の localStorage を書き換えない
+  require_confirmation_for_external_effects: true
+
+test_data:
+  enabled: false
+  # 理由: このゲームが作るデータは localStorage の5キーだけで、UT はそれが空の別 origin で行う。
+  #       接頭辞を付ける対象が存在しない。片付けは「UT用 origin ごと捨てる」で済む。
+  cleanup: "assisted"
+  require_baseline: true      # 開始前に localStorage の中身を控える
+  require_dry_run: true
+  require_explicit_approval: true
+
+observation:
+  capture_task_time: true
+  capture_quotes: true
+  capture_screenshots: "required"   # canvas の中身は画像でしか残らない
+  anonymize_participants: true
+  recording: "disabled"
+
+analysis:
+  frameworks: ["nielsen-10", "impact-effect-efficiency-satisfaction"]
+  root_issue_target: "3-5"
+  confidence_levels: ["high", "medium", "low"]

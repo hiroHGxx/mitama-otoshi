@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>御霊おとし UT分析評価レポート</title>
+  <style>
+    :root { color-scheme:light; --ink:#16202a; --muted:#667085; --line:#d6dbe1; --paper:#fff; --soft:#f4f6f8; --accent:#2457d6; --high:#b42318; --medium:#9a6700; --low:#157347; }
+    * { box-sizing:border-box; }
+    body { margin:0; overflow-x:hidden; background:var(--soft); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.65; }
+    main { width:min(1180px,calc(100% - 32px)); max-width:calc(100vw - 32px); margin:32px auto; background:var(--paper); padding:clamp(24px,5vw,60px); border:1px solid var(--line); border-radius:16px; }
+    h1 { font-size:clamp(30px,5vw,48px); line-height:1.12; margin:0 0 12px; }
+    h2 { margin-top:56px; padding-bottom:10px; border-bottom:2px solid var(--ink); }
+    h3 { margin-top:30px; }
+    .meta { display:flex; flex-wrap:wrap; gap:8px 20px; color:var(--muted); }
+    .summary { margin:30px 0; padding:22px; background:#eef3ff; border-left:4px solid var(--accent); border-radius:10px; }
+    .warn { margin:26px 0; padding:20px; background:#fff8e6; border-left:4px solid var(--medium); border-radius:10px; }
+    .card { margin:18px 0; padding:20px; border:1px solid var(--line); border-radius:12px; break-inside:avoid; }
+    .high { color:var(--high); font-weight:750; } .medium { color:var(--medium); font-weight:750; } .low { color:var(--low); font-weight:750; }
+    table { width:100%; border-collapse:collapse; margin:18px 0 30px; font-size:14px; }
+    th,td { padding:11px; border:1px solid var(--line); vertical-align:top; text-align:left; }
+    th { background:#edf0f4; }
+    .muted { color:var(--muted); }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em; }
+    h1,h2,h3,p,.summary,.meta span { overflow-wrap:anywhere; }
+    footer { margin-top:56px; color:var(--muted); font-size:13px; }
+    @media (max-width:800px) { table { display:block; overflow-x:auto; } th,td { min-width:150px; } }
+    @media print { body { background:#fff; } main { width:100%; margin:0; border:0; padding:24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>御霊おとし UT分析評価レポート</h1>
+    <div class="meta">
+      <span>UT実施日: 2026-08-28</span>
+      <span>モード: hybrid</span>
+      <span>参加者: P01（AI代理・人間0名）</span>
+      <span>分析日: 2026-08-28</span>
+      <span>run-id: g1a7</span>
+    </div>
+  </header>
+
+  <h2>A. 分析方法とデータ範囲</h2>
+
+  <table>
+    <tr><th>入力</th><td><code>docs/ut/runs/2026-08-28-g1a7/session.json</code> / <code>results.jsonl</code>（10件） / <code>UT結果ログ_2026-08-28.md</code> / モデレーターシナリオ（10件） / <code>docs/SPEC.md</code>（受入の正本） / <code>src/game.js</code>・<code>src/page.html</code>（実装） / 同日の金継ぎ診断 <code>data/kintsugi/2026-08-28/SHINDAN-20260828.md</code></td></tr>
+    <tr><th>枠組み</th><td>Nielsen の10ヒューリスティック／インパクト（効果・効率・満足信頼）／UX5段階／受入差分</td></tr>
+    <tr><th>整合チェック</th><td>session の完了ID10件と results の10件が一致・重複なし・参加者ID匿名化済み・observed と interpretation は分離されている（interpretation は全件 null で渡された）・証拠ファイルは <code>screenshots/</code> に20枚実在（ほか計測の生データ2件）</td></tr>
+    <tr><th>前回との比較</th><td>なし（本作の初回UT。2026-08-18の公開時には目付を持っていなかった）</td></tr>
+  </table>
+
+  <div class="warn">
+    <strong>このレポートの最大の制約 — 参加者は人間ではない。</strong>
+    観察はすべて AI（Claude）が初見の遊び手を代行し、Playwright と claude-in-chrome で実際に操作した結果である。
+    したがって<strong>表示・数値・所要時間・コードは direct（実測とスクリーンショットが残る）</strong>だが、
+    <strong>「迷った」「分かりにくい」「離脱する」の類は inferred</strong> であり、人間の詰まりを測ったものではない。
+    発話引用は全10件で <code>null</code>。<strong>n=1、しかもAI代理の結果を発生頻度として一般化しない。</strong>
+    人間で確かめ直すべき項目は I 章に名指しで挙げる。
+  </div>
+
+  <h2>B. エグゼクティブサマリー</h2>
+
+  <div class="summary">
+    <p><strong>遊びの芯は最後まで通った。</strong>初見の状態から、開く→入る→狙って落とす→合体させる→図鑑を見る→夜が明ける→もう一度、までが一度も詰まらずに完走した。
+    コントラストの破れは3画面・3幅すべてで0件、Artifact配布版でも琴の実サンプルが正しく復号された（2026-08-27に移植したCSP対策が効いている）。称号・図鑑の解禁・「これまでの誉れ」も仕様どおり動いた。</p>
+    <p><strong>見つかった穴は5つで、性質が二つに分かれる。</strong>ひとつは<strong>記録の正しさの穴</strong>——夜が明けたあとも盤面が動き続け、ヘッダーの得点が結果カードと最高記録を追い越す（3回中2回で再現）。
+    もうひとつは<strong>作り込みが届いていない穴</strong>——御霊図鑑・称号・皆既月蝕という、この作品でいちばん手が掛かっている部分への入口が、16pxのアイコン1つ・自力では到達困難な段位・2.87秒の空白の向こう側にある。</p>
+    <p><strong>最優先は R-1</strong>（夜明け後もスコアが動く）。理由は、効きと軽さの比がいちばん良いからではなく、
+    <strong>これが「記録が正しいこと」を前提に積み上がっている仕組み（最高得点・称号・これまでの誉れ）の土台を崩している</strong>から。直し自体は数行で足りる。</p>
+  </div>
+
+  <h2>C. 観察結果の分布</h2>
+
+  <table>
+    <thead><tr><th>状態</th><th>件数</th><th>シナリオ</th></tr></thead>
+    <tbody>
+      <tr><td>完了</td><td>6</td><td>A-1 / A-2 / A-3 / B-4 / C-9 / D-10</td></tr>
+      <tr><td>摩擦あり完了</td><td>4</td><td>B-5 / B-6 / B-7 / C-8</td></tr>
+      <tr><td>失敗</td><td>0</td><td>—</td></tr>
+      <tr><td>blocked</td><td>0</td><td>—</td></tr>
+      <tr><td>受入 OK</td><td>8</td><td>A-1 / A-2 / A-3 / B-4 / B-5 / B-6 / C-9 / D-10</td></tr>
+      <tr><td>受入 <span class="high">NG</span></td><td>2</td><td>B-7（SPEC §9）／ C-8（SPEC §5・§6）</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted">blocked が0件なのは、このゲームに課金・送信・外部影響の操作が存在しないため（2026-08-27のオフィスUTでは blocked が4件あった。対象の性質の違いであって、良し悪しではない）。</p>
+
+  <h2>D. 根本課題</h2>
+
+  <div class="card">
+    <h3>R-1 夜が明けても、盤面は止まっていない <span class="high">確信度 high</span></h3>
+    <p><strong>因果連鎖</strong>: <code>loop()</code> の <code>Engine.update</code> と合体処理に <code>gameOver</code> のガードが無い → 「夜が明けた」の裏で物理と合体が続き <code>score</code> が増える → だが <code>endGame()</code> は結果カードの得点と <code>mitama_best</code> をその瞬間に凍結している → <strong>同じ画面に、追い越したヘッダーの得点と、止まった結果カードの得点と、止まった最高記録が同時に出る。</strong></p>
+    <p><strong>根拠</strong>: OBS-C8。C-8a-gameover.png にヘッダー622／結果カード612／BEST612 が同時に写っている。追試2回のうち1回で再現（894→901→<strong>916</strong> に対し結果カード・BEST・localStorage は901のまま）。<strong>3回中2回。</strong>実装は <code>game.js:638-651</code>（endGame）と <code>game.js:1338-1341</code>（loop の <code>Engine.update</code> / <code>checkGameOver</code> の呼び出しが <code>pausedUntil</code> と <code>dexOpen</code> でしか止まらない）。<code>tryMerge</code>（<code>game.js:466-478</code>）にも <code>gameOver</code> の判定が無い。</p>
+    <p><strong>Nielsen</strong>: #1 システム状態の可視性 ／ #4 一貫性と標準 ／ #5 エラーの予防。<strong>UX層</strong>: 構造（操作フローの終端が定義されていない）。<strong>インパクト</strong>: 効果（記録が正しくない）＋満足・信頼（同じ画面の数字が食い違う）。</p>
+    <p class="muted"><strong>別解釈・反証</strong>: 「プレイヤーは結果カードしか見ないので実害がない」という読みは成り立つ。ただしヘッダーはオーバーレイの外にあり、結果カードと同時に見える位置にある（証拠画像で確認）。また、あふれた瞬間に成立した合体の点が最高記録に入らないのは、プレイヤーから見れば「損をした」側の食い違いである。</p>
+  </div>
+
+  <div class="card">
+    <h3>R-2 いちばん作り込んだ場所への入口が、16pxのアイコン一つ <span class="high">確信度 high</span></h3>
+    <p><strong>因果連鎖</strong>: 御霊図鑑（札絵・よみ・所属・公式紹介文・解禁の仕掛け）を開く導線は盤面下の階梯タップだけ → その標的は実測16〜22pxで<strong>半分が押し所の床（両辺24px）を割る</strong>（公式トンマナの <code>hit-target</code> は44px）→ しかも <code>&lt;img&gt;</code> に JS のクリックを付けただけなので hover も focus も無く、押せる印もキーボード経路も無い → <strong>作り込みが最も厚い部分に、いちばん細い入口が付いている。</strong></p>
+    <p><strong>根拠</strong>: OBS-B6（標的16×16px・開くことは確認済み・入口は他に無い）。<strong>同じ場所を、独立に回した金継ぎが見立て問い7で指している</strong>（`SHINDAN-20260828.md` 見立て2件目）。異なる2つの道具が同じ一点で一致した。</p>
+    <p><strong>Nielsen</strong>: #6 記憶より認識 ／ #7 柔軟性と効率。<strong>UX層</strong>: 骨格（導線）。<strong>インパクト</strong>: 効果（図鑑・称号という価値に到達しない）。</p>
+    <p class="muted"><strong>注記</strong>: 金継ぎの検査器は「小タップ標的0件」と報告した。これは <code>&lt;img&gt;</code>＋<code>addEventListener</code> を標的として数えない実装だからで、<strong>「無い」ではなく「見ていない」</strong>。手計測で見つけた。</p>
+  </div>
+
+  <div class="card">
+    <h3>R-3 最初の2.87秒、遊べる印が画面に無い <span class="medium">確信度 medium</span></h3>
+    <p><strong>因果連鎖</strong>: オープニングは札絵を全画面で見せる演出で、案内カードは札絵の読み込み完了から2.6秒後に出る（保険5秒）→ 実測で<strong>開いてからカードが出るまで2.87秒</strong>（Artifact版2.873秒）→ その間、題字も遊び方も入口のボタンも無い → <strong>SNSのリンクを踏んだ人が最初に見るのは、操作できるものが何も無い1枚絵。</strong></p>
+    <p><strong>根拠</strong>: OBS-A1（`card_ready_ms` = 2870）、A-1a-open-300ms.png（300ms時点の画面には札絵しか無い）、OBS-D10（2873ms）。実装は <code>game.js:1195</code> の <code>setTimeout(showCard, reducedMotion ? 400 : 2600)</code>。</p>
+    <p><strong>Nielsen</strong>: #1 可視性。<strong>UX層</strong>: 骨格。<strong>インパクト</strong>: 効率＋満足。</p>
+    <p class="muted"><strong>制約</strong>: <strong>「ここで離脱するか」は測っていない。</strong>AI代理は待てるが人は待たない、という一般則を当てはめているだけで、この作品での離脱は観察していない。<code>reduced-motion</code> 設定では400msに短縮される経路があることも申し添える（この設定は未検証）。</p>
+  </div>
+
+  <div class="card">
+    <h3>R-4 進みの目盛りが、9pxの英字と背景の月にしか無い <span class="medium">確信度 medium</span></h3>
+    <p><strong>因果連鎖</strong>: 進み具合を示すものは3つ——ヘッダーの <code>SCORE</code> / <code>BEST</code> / <code>NEXT</code>（いずれもラベルが<strong>9pxの英字大文字</strong>）、盤面下の階梯（10個並ぶが<strong>現在地の印が無く、到達済みと未到達が同じ見え方</strong>）、canvas の背景の月の満ち欠け（<strong>気づかなければ存在しない</strong>）→ <strong>「自分がどこまで来たか」を読める場所が、小さいか、印が無いか、暗い。</strong></p>
+    <p><strong>根拠</strong>: OBS-B5（ラベル9px・色 <code>#9D93B5</code>・階梯に現在地マーカー無し）。<strong>金継ぎの型紙 <code>uppercase-labels</code>×4・<code>english-labels</code>×4 が同じ <code>div.label</code> 群を指した</strong>（2つの道具の一致・2件目）。金継ぎ側の修理でこの4件を日本語化すると定番度は42→25に落ちる。</p>
+    <p><strong>Nielsen</strong>: #1 可視性 ／ #2 実世界との一致（日本語のゲームに英字のラベル）。<strong>UX層</strong>: 表層＋骨格。<strong>インパクト</strong>: 効率＋満足。</p>
+  </div>
+
+  <div class="card">
+    <h3>R-5 見せ場を確かめる仕掛けが、見せ場まで届かない <span class="high">確信度 high</span>（受入NG）</h3>
+    <p><strong>因果連鎖</strong>: SPEC §9 は <code>#test</code> を「咲耶×2 → 満月成就、6秒後にもう一組 → 満月×2 → 皆既月蝕」と定めている → 実装（<code>game.js:1286-1296</code>）は咲耶を壺の左右2点へ落とすだけで、<strong>2体が接触する保証が無い</strong> → 実測では満月が1体できたところで止まり、<strong>132秒待っても皆既月蝕は出なかった</strong>（咲耶2体が満月をはさんで左右に離れて静止）→ <strong>この作品でいちばん重い演出を、作り手が確かめる手段が無い。</strong></p>
+    <p><strong>根拠</strong>: OBS-B7。B-7a-cutin.png（満月成就は2.967秒後に出た）、B-7d-no-eclipse.png（132秒後の盤面・SCORE 55＝満月1体ぶん）。</p>
+    <p><strong>Nielsen</strong>: 該当なし（UIの課題ではなく<strong>要件の課題</strong>。無理にヒューリスティック番号を付けない）。<strong>UX層</strong>: 要件。<strong>インパクト</strong>: 効果（検品可能性そのもの）。</p>
+    <p class="muted"><strong>注記</strong>: これはプレイヤーが触る機能ではない。だが検品担当（結）を採用した理由——「作った本人が検品していたから不具合が残った」——に直結する。<strong>確かめる手段が確かめたいものに届かないなら、その演出は毎回「たぶん動いている」で出荷される。</strong></p>
+  </div>
+
+  <h2>E. インパクト分析</h2>
+
+  <table>
+    <thead><tr><th>根本課題</th><th>効果（達成できるか）</th><th>効率（時間・迷い）</th><th>満足・信頼</th><th>証拠強度</th></tr></thead>
+    <tbody>
+      <tr><td>R-1 夜明け後もスコアが動く</td><td class="high">大（記録が正しくない）</td><td>小</td><td class="high">大（同じ画面で数字が食い違う）</td><td>direct・3回中2回で再現・コードで機序を確認</td></tr>
+      <tr><td>R-2 図鑑の入口が16px</td><td class="high">大（作り込みに到達しない）</td><td class="medium">中</td><td class="medium">中</td><td>direct（実測16px・入口の唯一性はコードで確認）＋独立した2つ目の道具が一致</td></tr>
+      <tr><td>R-3 最初の2.87秒</td><td class="medium">中（離脱すれば0）</td><td class="high">大</td><td class="medium">中</td><td>direct（時間は実測）／<strong>離脱の有無は未観察</strong></td></tr>
+      <tr><td>R-4 進みの目盛り</td><td>小</td><td class="medium">中</td><td class="medium">中</td><td>direct（サイズ・色は実測）／<strong>読めたかどうかは inferred</strong></td></tr>
+      <tr><td>R-5 #test が届かない</td><td class="high">大（作り手側）</td><td class="medium">中（作り手側）</td><td>—</td><td>direct・SPECとの差分が明確</td></tr>
+    </tbody>
+  </table>
+
+  <h2>F. UX層別分析</h2>
+
+  <table>
+    <thead><tr><th>層</th><th>根本課題</th><th>読み</th></tr></thead>
+    <tbody>
+      <tr><td>戦略</td><td>—</td><td>「二次創作として、公式の世界に触れた人が増える」という目的は成立している。ここに穴は見つからなかった</td></tr>
+      <tr><td>要件</td><td>R-5</td><td>検品のための機能が、検品したいものに届いていない</td></tr>
+      <tr><td>構造</td><td>R-1</td><td>「夜が明ける」が終端として定義されていない。演出は終わるが、盤面は終わらない</td></tr>
+      <tr><td>骨格</td><td>R-2 / R-3 / R-4</td><td>作り込みの厚い場所（図鑑・称号・演出）ほど、そこへ至る導線が細い。<strong>3件が同じ層に集まっている</strong></td></tr>
+      <tr><td>表層</td><td>R-4（一部）</td><td>9pxの英字ラベル。金継ぎ側で数字が出ており、修理も済んでいる（写しの上で）</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>層の分布から読めること</strong>: 深い層（戦略・要件）はほぼ健全で、<strong>穴は骨格に集中している</strong>。
+  これは「作るものを間違えた」のではなく「作ったものへの入り方が細い」という形で、
+  <strong>直しの多くが小さい</strong>ことを意味する。深い層に課題が無いことを、自動的に「軽い」と読み替えない——
+  R-1 は構造の穴で、直しは数行だが、影響は記録全体に及ぶ。</p>
+
+  <h2>G. 個別観察</h2>
+
+  <table>
+    <thead><tr><th>ID</th><th>シナリオ</th><th>観点</th><th>タスク</th><th>受入</th><th>観察の要点</th><th>証拠強度</th><th>根本課題</th></tr></thead>
+    <tbody>
+      <tr><td>OBS-A1</td><td>A-1</td><td>AI observation</td><td>完了</td><td>OK</td><td>案内カードまで2870ms。カードは幅263.3pxに遊び方4行（13px）・副題と注記は10px</td><td>direct</td><td>R-3</td></tr>
+      <tr><td>OBS-A2</td><td>A-2</td><td>AI observation</td><td>完了</td><td>OK</td><td>入口は2つ（音あり49px／音なし37px・12px・#9D93B5）。押下で <code>mitama_sound</code> 保存</td><td>direct</td><td>—</td></tr>
+      <tr><td>OBS-A3</td><td>A-3</td><td>AI observation</td><td>完了</td><td>OK</td><td>なぞって離す操作が成立。狙い x=97.5 に対し着弾 x≒97。クールダウン中の2球目は出ない</td><td>direct</td><td>—</td></tr>
+      <tr><td>OBS-B4</td><td>B-4</td><td>AI observation</td><td>完了</td><td>OK</td><td>18投のスコア推移 0,0,0,0,3,…,18,64。初加点は5投目。14→15投で+46（連鎖）。琴は実サンプルで再生</td><td>direct</td><td>—</td></tr>
+      <tr><td>OBS-B5</td><td>B-5</td><td>AI observation</td><td>摩擦あり</td><td>OK</td><td>ラベル3つとも9px英字大文字。階梯10個に現在地の印なし。到達度は背景の月のみ</td><td>direct（寸法）／inferred（読めるか）</td><td>R-4</td></tr>
+      <tr><td>OBS-B6</td><td>B-6</td><td>AI observation</td><td>摩擦あり</td><td>OK</td><td>16×16pxの階梯アイコンで図鑑が開く。中身は充実（札絵・よみ・所属・紹介文・未到達はシルエット）。入口は他に無い</td><td>direct</td><td>R-2</td></tr>
+      <tr><td>OBS-B7</td><td>B-7</td><td>AI observation</td><td>摩擦あり</td><td class="high">NG</td><td><code>#test</code> で満月成就は2.967秒後に出たが、132秒待っても皆既月蝕は出ない。咲耶2体が満月をはさんで静止</td><td>direct</td><td>R-5</td></tr>
+      <tr><td>OBS-C8</td><td>C-8</td><td>AI observation</td><td>摩擦あり</td><td class="high">NG</td><td>結果画面は仕様どおり（称号・札絵・スコア・再開）。ただしヘッダー622／カード612／BEST612 の食い違い。追試で再現（916対901）</td><td>direct（画像＋2回の追試＋コード）</td><td>R-1</td></tr>
+      <tr><td>OBS-C9</td><td>C-9</td><td>AI observation</td><td>完了</td><td>OK</td><td>♪（34×34px）で消音。字は変わらず取り消し線と減光で表す。盤面は止まらない</td><td>direct</td><td>—</td></tr>
+      <tr><td>OBS-D10</td><td>D-10</td><td>AI observation</td><td>完了</td><td>OK</td><td>Artifact配布版（14.4MB）も同じ見た目・同じ所要（2873ms）。<strong>琴の実サンプルが2件とも復号成功</strong></td><td>direct</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h2>H. 参加者・観点別の寄与</h2>
+
+  <table>
+    <thead><tr><th>観点</th><th>件数</th><th>寄与</th></tr></thead>
+    <tbody>
+      <tr><td>人間参加者</td><td class="high">0</td><td>—</td></tr>
+      <tr><td>AI observation（Playwright／claude-in-chrome）</td><td>10</td><td>寸法・時間・状態遷移・コードとの突き合わせ。R-1 の再現（3回中2回）と R-5 の132秒待機は、人手では退屈で見落としやすい種類の観察で、ここは代行が効いた</td></tr>
+      <tr><td>金継ぎ（同日・独立）</td><td>—</td><td>R-2 と R-4 を独立に指した。<strong>2つの道具が一致した2点は、他より確度が高いとみなす</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>I. 結論</h2>
+
+  <p><strong>公開を止める課題は無い。</strong>遊びの芯は通っており、配布経路の差もない。2026-08-18の公開判断は妥当だった。</p>
+
+  <p><strong>次工程への論点（改善案は分析ではないので分けて置く）</strong>:</p>
+  <ol>
+    <li><strong>R-1 は直す価値が高い。</strong>「夜が明けた」を終端として定義する（物理と合体を止めるか、結果を凍結せず追従させるか）。どちらを選ぶかは設計の判断で、分析の持ち場ではない</li>
+    <li><strong>R-2 と R-4 は、金継ぎ側の追補CSSに修理デモが既にある</strong>（<code>data/kintsugi/2026-08-28/kintsugi-repair.css</code>）。ただし押し所を44px（公式の <code>hit-target</code>）まで満たすには <code>&lt;button&gt;</code> で包む実装が要る</li>
+    <li><strong>R-3 と R-5 は、直す前に人間で確かめたほうがよい。</strong>2.87秒が本当に長いのか、<code>#test</code> をこれから何回使うのか、で価値が変わる</li>
+  </ol>
+
+  <p><strong>人間で確かめ直すべき項目（このUTでは測っていない）</strong>:</p>
+  <ul>
+    <li><strong>初見の第一印象と離脱</strong>——R-3 の2.87秒。AI代理は待つが、人は待たない</li>
+    <li><strong>実機のスマホ</strong>（iOS Safari / Android Chrome）——SPEC §8 のダブルタップズーム抑止・ピンチ抑止は未検証</li>
+    <li><strong>音の実聴</strong>——復号の成功は確認したが、音量バランス・琴の音階・鈴の間隔は聴いていない</li>
+    <li><strong>「面白いか」</strong>——目付は「壊れていないか」「使えるか」を測る道具で、面白さは測らない。それは講評の持ち場であり、最後はオーナーの耳と目</li>
+  </ul>
+
+  <h2>付録. 証拠と追跡対応</h2>
+
+  <table>
+    <thead><tr><th>根本課題</th><th>observation</th><th>scenario</th><th>証拠ファイル</th><th>実装の位置</th></tr></thead>
+    <tbody>
+      <tr><td>R-1</td><td>OBS-C8</td><td>C-8</td><td><code>screenshots/C-8a-gameover.png</code> / <code>C-8d-score-mismatch.png</code></td><td><code>src/game.js:638-651</code>（endGame）/ <code>:1338-1341</code>（loop）/ <code>:466-478</code>（tryMerge）</td></tr>
+      <tr><td>R-2</td><td>OBS-B6</td><td>B-6</td><td><code>screenshots/B-6a-dex-tier1.png</code> / <code>B-6b-dex-locked.png</code></td><td><code>src/game.js:1163-1178</code>（階梯の生成とクリック）/ <code>src/page.html:369-378</code></td></tr>
+      <tr><td>R-3</td><td>OBS-A1 / OBS-D10</td><td>A-1 / D-10</td><td><code>screenshots/A-1a-open-300ms.png</code> / <code>A-1b-card.png</code></td><td><code>src/game.js:1186-1200</code></td></tr>
+      <tr><td>R-4</td><td>OBS-B5</td><td>B-5</td><td><code>screenshots/B-4-merged.png</code></td><td><code>src/page.html:88-110</code>（.stat .label）/ <code>:362-378</code>（#ladder）</td></tr>
+      <tr><td>R-5</td><td>OBS-B7</td><td>B-7</td><td><code>screenshots/B-7a-cutin.png</code> / <code>B-7d-no-eclipse.png</code></td><td><code>src/game.js:1286-1296</code> ／ <code>docs/SPEC.md</code> §9</td></tr>
+    </tbody>
+  </table>
+
+  <footer>UT分析評価レポート · 御霊おとし · run g1a7 · 2026-08-28 ／ 観察=検品担当（結）・分析=講評担当（ナルカ）</footer>
+</main>
+</body>
+</html>

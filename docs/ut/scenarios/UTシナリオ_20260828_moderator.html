@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>御霊おとし UTモデレーターシナリオ</title>
+  <style>
+    :root { color-scheme:light; --ink:#17202a; --muted:#667085; --line:#d7dce2; --paper:#fff; --soft:#f5f7fa; --accent:#2457d6; --good:#157347; --warn:#9a6700; --danger:#b42318; }
+    * { box-sizing:border-box; }
+    body { margin:0; overflow-x:hidden; background:var(--soft); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.55; }
+    main { width:min(1240px,calc(100% - 32px)); max-width:calc(100vw - 32px); margin:32px auto; background:var(--paper); padding:clamp(24px,4vw,52px); border:1px solid var(--line); border-radius:16px; }
+    h1 { font-size:clamp(28px,4vw,42px); line-height:1.15; margin:0 0 12px; }
+    h2 { margin-top:48px; padding-bottom:10px; border-bottom:2px solid var(--ink); }
+    .meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:20px 0; color:var(--muted); }
+    .callout { padding:16px 18px; background:#eef3ff; border-left:4px solid var(--accent); border-radius:8px; }
+    .callout.amber { background:#fff8e6; border-left-color:var(--warn); }
+    table { width:100%; border-collapse:collapse; margin:18px 0 30px; font-size:14px; }
+    th,td { padding:12px; border:1px solid var(--line); vertical-align:top; text-align:left; }
+    th { background:#edf0f4; }
+    .id { font-weight:750; color:var(--accent); white-space:nowrap; }
+    .source { color:var(--muted); font-size:12px; }
+    .risk-low { color:var(--good); }
+    .risk-medium { color:var(--warn); }
+    .risk-high { color:var(--danger); font-weight:700; }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em; }
+    h1,h2,p,.callout,.meta span { overflow-wrap:anywhere; }
+    footer { margin-top:48px; color:var(--muted); font-size:13px; }
+    @media (max-width:800px) { table { display:block; overflow-x:auto; } th,td { min-width:150px; } }
+    @media print { body { background:#fff; } main { width:100%; margin:0; border:0; padding:20px; } table { font-size:11px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>御霊おとし UTモデレーターシナリオ</h1>
+    <div class="meta">
+      <span>モード: hybrid</span>
+      <span>環境: local（http://127.0.0.1:8971/）</span>
+      <span>作成: 2026-08-28</span>
+      <span>改訂: —</span>
+      <span>シナリオ数: 10</span>
+      <span>設定: ut.config.yaml</span>
+    </div>
+  </header>
+
+  <div class="callout">
+    参加者へ期待結果や理想操作を先に見せない。結果は実施中に <code>results.jsonl</code> へ逐次保存する。
+    <code>observed</code> は事実だけを書き、<code>interpretation</code> は<strong>空のまま</strong>渡す（解釈は分析工程の持ち場）。
+  </div>
+
+  <h2>0. 目的・範囲・前提</h2>
+  <ul>
+    <li><strong>対象ユーザー</strong>: リンクを踏んで初めて来た人。『月蝕綺譚』を知らない可能性がある。落ち物パズルの経験はあるかもしれないが、本作固有のルール（浄化・連鎖・皆既月蝕・図鑑・称号）は知らない。</li>
+    <li><strong>対象ジャーニー</strong>: 開く → 何のゲームか分かる → 入る → 落とす → 合体させる → 進みを知る → 調べる → 見せ場に届く → 終わる → もう一度。</li>
+    <li><strong>対象外</strong>: 物理挙動のチューニング（気持ちよさ）、スコアバランス、二次創作ガイドライン適合（別工程）、PV・わいわいタウン掲載ページ。</li>
+    <li><strong>実施環境</strong>: このリポジトリを <code>python3 -m http.server 8971</code> で配信したもの。<strong>本番 origin（github.io）では実施しない</strong>——本番の <code>localStorage</code> がオーナーの実記録（最高得点・図鑑解禁・称号）だから。ローカル origin は同時に「初見の状態」でもある。</li>
+    <li><strong>受入の正本</strong>: <code>docs/SPEC.md</code>（節番号で追跡）。</li>
+  </ul>
+
+  <div class="callout amber">
+    <strong>実施順の逸脱について（明示）</strong>: 設定の <code>execution.order</code> は非破壊→可逆変更→不可逆の順だが、
+    本作は<strong>入口（A-2）を通らないと盤面に入れない</strong>単一の遊び体験であり、体験順に実施する。
+    可逆変更は <code>localStorage</code> の5キー（<code>mitama_best</code> / <code>mitama_sound</code> / <code>mitama_dex_max</code> /
+    <code>mitama_title_rank</code> / <code>mitama_title</code>）に限られ、UT用 origin ごと捨てられる。
+    <strong>不可逆・外部影響の操作はこのゲームに存在しない</strong>（通信をしない）。
+  </div>
+
+  <h2>A. はじめて開く</h2>
+  <table>
+    <thead><tr><th>No.</th><th>開始状態・参加者タスク</th><th>成功条件・期待結果</th><th>観察点・中立プローブ</th><th>リスク・データ</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="id">A-1</span><div class="source">SPEC §5 オープニング / page.html #title-overlay</div></td>
+        <td><strong>開始:</strong> localStorage 空。URL を開いた直後。<br><strong>タスク:</strong> 何で、自分は何をすればいいのかを掴む（操作はまだしない）</td>
+        <td>札絵が全画面でズームアウト → 夜の帳 → 案内カード（タイトル・4行の遊び方・ボタン2つ）。<strong>参加者が「落として同じもの同士を重ねる」「あふれたら終わり」を、聞かずに言える</strong></td>
+        <td><strong>観察:</strong> カードが出るまでの待ち時間に何をするか／4行のどこを読むか／読まずにボタンを押すか／札絵の全画面を「読み込み中」と受け取るか<br><strong>必要時のみ:</strong> 「いま画面に何が見えていますか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">A-2</span><div class="source">SPEC §7 音の入口 / game.js enterNight()</div></td>
+        <td><strong>開始:</strong> 案内カード表示中。<br><strong>タスク:</strong> 遊び始める</td>
+        <td>「月夜に入る」または「静かに入る — 音なし」を押すとカードが消え、盤面に入る。押した選択が <code>mitama_sound</code> に保存される</td>
+        <td><strong>観察:</strong> 2つのボタンの違いを理解して選ぶか／どちらを押すか／「※音が鳴ります」を読むか／2つ目のボタンをボタンと認識するか<br><strong>必要時のみ:</strong> 「いま何を選びましたか」</td>
+        <td><span class="risk-medium">reversible-mutation</span><br>localStorage: mitama_sound</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">A-3</span><div class="source">SPEC §8 入力 / §4 盤面</div></td>
+        <td><strong>開始:</strong> 盤面に入った直後。<br><strong>タスク:</strong> 最初の1体を狙った場所に置く</td>
+        <td>なぞる＝照準が動く、離す＝落ちる。<strong>離すまで落ちない</strong>ことに気づける。落下後 550ms のクールダウン</td>
+        <td><strong>観察:</strong> 最初の操作は何か（タップ／ドラッグ／どこを触るか）／狙いと落下位置がずれたか／クールダウン中に押して無反応になったときの反応<br><strong>必要時のみ:</strong> 「いま何が起きると思って触りましたか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>B. 遊んでいるあいだ</h2>
+  <table>
+    <thead><tr><th>No.</th><th>開始状態・参加者タスク</th><th>成功条件・期待結果</th><th>観察点・中立プローブ</th><th>リスク・データ</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="id">B-4</span><div class="source">SPEC §2 合体スコア / §3 連鎖</div></td>
+        <td><strong>開始:</strong> 数回落とした盤面。<br><strong>タスク:</strong> 点数を増やす</td>
+        <td>同じ段の御霊が触れると合体し、生成段の点（1/3/6/10/15/21/28/36/45/55）が入る。SCORE がカウントアップし加点ポップ。<strong>参加者が「同じもの同士を当てる」と自力で言語化できる</strong></td>
+        <td><strong>観察:</strong> 合体に気づくまでの手数／合体の直後に何を見るか（玉かスコアか）／連鎖（◯連浄化の縦書き金文字）に気づくか／落とす場所を選ぶようになるか<br><strong>必要時のみ:</strong> 「いま点が入ったのはなぜだと思いますか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">B-5</span><div class="source">SPEC §5 スコア / page.html header.stats・#ladder</div></td>
+        <td><strong>開始:</strong> 遊びの途中。<br><strong>タスク:</strong> 「次に何が来るか」と「今どのくらい進んだか」を画面から読み取る</td>
+        <td>ヘッダーの <code>NEXT</code> に次の御霊の顔。<code>SCORE</code>／<code>BEST</code> が数値。盤面下の階梯（ladder）で今の到達段が分かる。背景の月が最高到達段に応じて満ちる</td>
+        <td><strong>観察:</strong> NEXT を見つけるまでの秒数／<code>SCORE</code> <code>BEST</code> <code>NEXT</code> の英字ラベルを読めるか／階梯を「進み具合の目盛り」と受け取るか、それとも別の何かと受け取るか／月の満ち欠けに言及するか<br><strong>必要時のみ:</strong> 「その表示は何を表していると思いますか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">B-6</span><div class="source">SPEC §6 図鑑・解禁</div></td>
+        <td><strong>開始:</strong> 遊びの途中。<br><strong>タスク:</strong> 出てくる子たちが何者かをページ内だけで調べ、遊びに戻る</td>
+        <td>階梯アイコンをタップ → 図鑑が開く（開いている間は物理停止）。札絵＋名前・よみ＋所属/五行＋紹介文。‹ › で移動。1〜5段は最初から閲覧可、6段以上は未到達ならシルエット＋「？？？」。✕ か外側タップで閉じる</td>
+        <td><strong>観察:</strong> 図鑑の入口を見つけられるか（見つけるまでの秒数・見つけられなければ failed）／階梯がタップできると思うか／閉じ方を見つけられるか／「？？？」を不具合と受け取るか<br><strong>必要時のみ:</strong> 「調べられそうな場所はありますか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">B-7</span><div class="source">SPEC §5 満月成就・皆既月蝕 / §9 #test</div></td>
+        <td><strong>開始:</strong> 遊びの途中。<br><strong>タスク:</strong> いちばん良いことが起きるところまで行く<br><em>（自力で届かない場合、進行役が <code>#test</code> で咲耶ペアを投下して見せ場だけ確認する。その旨を results に記録する）</em></td>
+        <td>満月成就＝カットインが黒帯上を左→右へスライドし1.75秒停止＋月光の浄化（1〜3段を最大4体）。満月×2接触＝皆既月蝕2.4秒＋100点。演出中は物理停止</td>
+        <td><strong>観察:</strong> 自力で満月まで届くか（届いた段位を記録）／演出が出たとき「何が起きたか」を説明できるか／演出中に操作しようとするか／カットインの人物を誰だと思うか<br><strong>必要時のみ:</strong> 「いま何が起きましたか」</td>
+        <td><span class="risk-low">non-mutating</span></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>C. 終わりと、もう一度</h2>
+  <table>
+    <thead><tr><th>No.</th><th>開始状態・参加者タスク</th><th>成功条件・期待結果</th><th>観察点・中立プローブ</th><th>リスク・データ</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="id">C-8</span><div class="source">SPEC §4 ゲームオーバー / §5 / §6 称号</div></td>
+        <td><strong>開始:</strong> 壺があふれた直後。<br><strong>タスク:</strong> 結果を読み取り、もう一度遊び始める</td>
+        <td>負け線（y=146）より上で速度0.35未満が2秒continue → 「夜が明けた」＋称号＋最高到達の札絵＋SCORE。<code>mitama_best</code> と <code>mitama_title_rank</code> を更新。「もう一夜」で再開</td>
+        <td><strong>観察:</strong> 負けた理由が分かるか／「夜が明けた」を負けと受け取るか／称号を読むか・意味が分かるか／「もう一夜」を再開ボタンと分かるか／自分の記録が残ったと分かるか<br><strong>必要時のみ:</strong> 「この画面は何を伝えていますか」</td>
+        <td><span class="risk-medium">reversible-mutation</span><br>localStorage: mitama_best / mitama_title_rank / mitama_title</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><span class="id">C-9</span><div class="source">SPEC §7 音 / page.html #mute</div></td>
+        <td><strong>開始:</strong> 音ありで遊んでいる最中。<br><strong>タスク:</strong> 遊びを中断せずに音を止める</td>
+        <td>ヘッダー右の ♪ を押すと消音（表示が切り替わる）。<code>mitama_sound</code> に保存。盤面は止まらない</td>
+        <td><strong>観察:</strong> ♪ を音のボタンだと分かるか（見つけるまでの秒数）／押した後に「止まった」と確信できるか／押し所の大きさで外すか<br><strong>必要時のみ:</strong> 「いま音は止まりましたか」</td>
+        <td><span class="risk-medium">reversible-mutation</span><br>localStorage: mitama_sound</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>D. 別の配布経路</h2>
+  <table>
+    <thead><tr><th>No.</th><th>開始状態・参加者タスク</th><th>成功条件・期待結果</th><th>観察点・中立プローブ</th><th>リスク・データ</th><th>結果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="id">D-10</span><div class="source">SPEC §10 ビルド / §11 配信</div></td>
+        <td><strong>開始:</strong> 進行役が <code>dist/artifact.html</code>（全埋め込み・約14MB）を開く。<br><strong>タスク:</strong> 同じように遊べるか、見た目と音がさっきと同じかを確かめる</td>
+        <td>index.html 版と同じ画面・同じ音が出る。とくに<strong>琴の実サンプル</strong>が鳴る（合成音フォールバックに落ちていない）。読み込み待ちのあいだ画面が壊れて見えない</td>
+        <td><strong>観察:</strong> 開いてから遊べるまでの秒数／読み込み中に何が見えるか／音の違いに気づくか<br><strong>必要時のみ:</strong> 「さっきと違うところはありますか」</td>
+        <td><span class="risk-low">non-mutating</span><br>別 origin（file:// もしくは同一ローカル配信）</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>実施前の確認</h2>
+  <ol>
+    <li>ローカル配信が 200 を返すこと（<code>curl -o /dev/null -w "%{http_code}" http://127.0.0.1:8971/</code>）</li>
+    <li>開始前の <code>localStorage</code> を baseline として控えること（空であることの確認を含む）</li>
+    <li>画面幅を記録すること（記録していない観察は分析で使わない）</li>
+    <li>スクリーンショットを <code>runs/&lt;date&gt;-&lt;run-id&gt;/screenshots/</code> に残すこと（canvas の中身は画像でしか残らない）</li>
+  </ol>
+
+  <footer>UT moderator view · 御霊おとし 2026-08-28 v1</footer>
+</main>
+</body>
+</html>

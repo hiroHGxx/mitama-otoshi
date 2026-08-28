@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>御霊おとし UTタスク</title>
+  <style>
+    :root { color-scheme: light; --ink:#17202a; --muted:#667085; --line:#d7dce2; --paper:#fff; --soft:#f5f7fa; --accent:#2457d6; --warn:#9a6700; }
+    * { box-sizing:border-box; }
+    body { margin:0; overflow-x:hidden; background:var(--soft); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.65; }
+    main { width:min(960px,calc(100% - 32px)); max-width:calc(100vw - 32px); margin:32px auto; background:var(--paper); padding:clamp(24px,5vw,56px); border:1px solid var(--line); border-radius:16px; }
+    h1 { font-size:clamp(28px,5vw,44px); line-height:1.15; margin:0 0 12px; }
+    h2 { margin-top:48px; padding-bottom:10px; border-bottom:2px solid var(--ink); }
+    .meta { display:flex; flex-wrap:wrap; gap:8px 20px; color:var(--muted); font-size:14px; }
+    .callout { margin:28px 0; padding:18px 20px; border-left:4px solid var(--accent); background:#eef3ff; border-radius:8px; }
+    .task { margin:20px 0; padding:20px; border:1px solid var(--line); border-radius:12px; break-inside:avoid; }
+    .task-id { color:var(--accent); font-weight:700; letter-spacing:.04em; }
+    .context { color:var(--muted); }
+    .goal { font-size:18px; font-weight:650; }
+    .warning { color:var(--warn); font-weight:650; }
+    h1,h2,p,.callout,.meta span { overflow-wrap:anywhere; }
+    footer { margin-top:48px; color:var(--muted); font-size:13px; }
+    @media print { body { background:#fff; } main { width:100%; margin:0; border:0; padding:24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>御霊おとし UTタスク</h1>
+    <div class="meta">
+      <span>実施日: 2026-08-28</span>
+      <span>環境: ローカル配信（http://127.0.0.1:8971/）</span>
+      <span>参加者ID: P01</span>
+    </div>
+  </header>
+
+  <div class="callout">
+    これはゲームの腕前を見るテストではなく、<strong>このゲームが分かりやすいかどうか</strong>を見るテストです。
+    うまく遊べなくても、思ったとおりに動かなくても、それがそのまま結果になります。
+    <strong>迷ったこと・分からないことは、そのまま声に出してください。</strong>正解を当てる必要はありません。
+    途中でやめても構いません。
+  </div>
+
+  <section>
+    <h2>A. はじめて開く</h2>
+
+    <article class="task">
+      <div class="task-id">A-1</div>
+      <p class="context">友だちから「これ遊んでみて」とリンクが送られてきました。何のリンクかは聞いていません。</p>
+      <p class="goal">リンクを開いて、<strong>これが何で、自分は何をすればいいのか</strong>を、声に出しながら掴んでください。まだ操作は始めなくて構いません。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">A-2</div>
+      <p class="context">中身が分かってきました。</p>
+      <p class="goal">遊び始めてください。</p>
+      <p class="warning">※ 音が出る場合があります。周りに人がいる場所なら、先に音量を確認してください。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">A-3</div>
+      <p class="context">遊びが始まりました。</p>
+      <p class="goal">最初の1体を、<strong>あなたが狙った場所</strong>に置いてください。狙いどおりになったかどうかも教えてください。</p>
+    </article>
+  </section>
+
+  <section>
+    <h2>B. 遊んでいるあいだ</h2>
+
+    <article class="task">
+      <div class="task-id">B-4</div>
+      <p class="context">何度か操作してみたところです。</p>
+      <p class="goal">できるだけ<strong>点数を増やして</strong>ください。どうすれば増えるのか、気づいたことを声に出してください。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">B-5</div>
+      <p class="context">遊びの途中です。</p>
+      <p class="goal">「<strong>次に何が来るのか</strong>」と「<strong>自分が今どのくらい進んだのか</strong>」を、画面から読み取ってください。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">B-6</div>
+      <p class="context">出てくる子たちが気になってきました。</p>
+      <p class="goal">この子たちが<strong>何者なのか</strong>を、このページの中だけで調べてください。調べ終わったら、遊びに戻ってください。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">B-7</div>
+      <p class="context">遊びを続けています。</p>
+      <p class="goal">このゲームで<strong>いちばん良いこと</strong>が起きるところまで行ってみてください。何が「いちばん良いこと」だと思うかも教えてください。</p>
+    </article>
+  </section>
+
+  <section>
+    <h2>C. 終わりと、もう一度</h2>
+
+    <article class="task">
+      <div class="task-id">C-8</div>
+      <p class="context">遊びが終わりました。</p>
+      <p class="goal">終わりの画面から、<strong>自分の結果</strong>を読み取って教えてください。そのあと、<strong>もう一度遊び始めて</strong>ください。</p>
+    </article>
+
+    <article class="task">
+      <div class="task-id">C-9</div>
+      <p class="context">今いる場所（電車の中など）で、音を出しっぱなしにできなくなりました。</p>
+      <p class="goal">遊びを中断せずに、<strong>音を止めて</strong>ください。</p>
+    </article>
+  </section>
+
+  <section>
+    <h2>D. 別のリンクで</h2>
+
+    <article class="task">
+      <div class="task-id">D-10</div>
+      <p class="context">同じゲームの、別の配り方のリンクを渡されました（進行役が開きます）。</p>
+      <p class="goal">こちらでも<strong>同じように遊べるか</strong>、とくに<strong>見た目と音がさっきと同じか</strong>を確かめてください。</p>
+    </article>
+  </section>
+
+  <footer>UT participant view · 御霊おとし 2026-08-28 v1</footer>
+</main>
+</body>
+</html>

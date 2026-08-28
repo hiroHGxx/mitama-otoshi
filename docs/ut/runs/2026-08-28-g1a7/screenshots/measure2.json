@@ -1,0 +1,150 @@
+[
+ {
+  "k": "B-7.cutin_ms_after_start",
+  "v": 2967
+ },
+ {
+  "k": "B-7.cutin",
+  "v": {
+   "src": "assets/art/cutin_sakuya.webp",
+   "w": 374,
+   "h": 223,
+   "alt": "満月成就",
+   "complete": true,
+   "natural": 836
+  }
+ },
+ {
+  "k": "B-7.eclipse",
+  "v": "TIMEOUT"
+ },
+ {
+  "k": "B-7.decodes",
+  "v": [
+   {
+    "ok": true,
+    "dur": 1.6
+   },
+   {
+    "ok": true,
+    "dur": 1.5
+   }
+  ]
+ },
+ {
+  "k": "C-8.gameover_ms",
+  "v": 69316
+ },
+ {
+  "k": "C-8.result",
+  "v": {
+   "title": {
+    "txt": "夜が明けた",
+    "fs": "22px",
+    "color": "rgb(224, 86, 47)",
+    "w": 172.5,
+    "h": 32
+   },
+   "sub": {
+    "txt": "壺から御霊があふれてしまった",
+    "fs": "11px",
+    "color": "rgb(157, 147, 181)",
+    "w": 172.5,
+    "h": 16
+   },
+   "label": {
+    "txt": "称号",
+    "fs": "10px",
+    "color": "rgb(157, 147, 181)",
+    "w": 172.5,
+    "h": 15
+   },
+   "ftitle": {
+    "txt": "夜番の頭",
+    "fs": "17px",
+    "color": "rgb(240, 206, 126)",
+    "w": 172.5,
+    "h": 25
+   },
+   "score": {
+    "txt": "612",
+    "fs": "44px",
+    "color": "rgb(240, 206, 126)",
+    "w": 172.5,
+    "h": 48.4
+   },
+   "tier": {
+    "txt": "頂：イズナ",
+    "fs": "13px",
+    "color": "rgb(232, 228, 216)",
+    "w": 172.5,
+    "h": 19
+   },
+   "retry": {
+    "txt": "もう一夜",
+    "fs": "14px",
+    "color": "rgb(19, 19, 32)",
+    "w": 172.5,
+    "h": 44
+   },
+   "fuda": {
+    "w": 152,
+    "h": 226,
+    "natural": 1024
+   },
+   "ls": {
+    "mitama_best": "612",
+    "mitama_dex_max": "6",
+    "mitama_title_rank": "6",
+    "mitama_title": "夜番の頭"
+   },
+   "overflowY": false
+  }
+ },
+ {
+  "k": "C-8.after_retry",
+  "v": {
+   "overlayShown": false,
+   "score": "0",
+   "best": "612"
+  }
+ },
+ {
+  "k": "C-8.title_honor",
+  "v": {
+   "hidden": false,
+   "txt": "これまでの誉れ：夜番の頭",
+   "fs": "10px",
+   "color": "rgb(157, 147, 181)"
+  }
+ },
+ {
+  "k": "D-10.domcontentloaded_ms",
+  "v": 282
+ },
+ {
+  "k": "D-10.card_ready_ms",
+  "v": 2873
+ },
+ {
+  "k": "D-10.decodes",
+  "v": [
+   {
+    "ok": true,
+    "dur": 1.5
+   },
+   {
+    "ok": true,
+    "dur": 1.6
+   }
+  ]
+ },
+ {
+  "k": "D-10.state",
+  "v": {
+   "canvas": true,
+   "ladder": 19,
+   "sound": "on"
+  }
+ }
+]

@@ -1,0 +1,48 @@
+{
+  "schema_version": "2.0",
+  "run_id": "g1a7",
+  "project_name": "御霊おとし（みたまおとし）",
+  "test_mode": "hybrid",
+  "environment": "local (http://127.0.0.1:8971/)",
+  "config_path": "ut.config.yaml",
+  "scenario_source": "docs/ut/scenarios/UTシナリオ_20260828_moderator.html",
+  "started_at": "2026-08-28T00:00:00+09:00",
+  "updated_at": "2026-08-28T23:40:00+09:00",
+  "status": "closed",
+  "participant_ids": [
+    "P01"
+  ],
+  "scenario_counts": {
+    "total": 10,
+    "completed": 10,
+    "with_friction": 1,
+    "failed_or_ng": 0,
+    "blocked": 0,
+    "skipped": 0,
+    "pending": 0
+  },
+  "completed_scenario_ids": [
+    "A-1",
+    "A-2",
+    "A-3",
+    "B-4",
+    "B-5",
+    "B-6",
+    "B-7",
+    "C-8",
+    "C-9",
+    "D-10"
+  ],
+  "pending_scenario_ids": [],
+  "created_test_data": [
+    "localStorage@127.0.0.1:8971: mitama_best / mitama_dex_max / mitama_title_rank / mitama_title / mitama_sound"
+  ],
+  "cleanup_status": "dry-run-proposed",
+  "notes": [
+    "参加者はAI代理（人間0名）。表示・数値・コードは direct な観察だが、迷い・理解・第一印象は inferred。発話引用(quote)は全件 null になる。この制約は結果ログと分析レポートに明記する。",
+    "本番 origin（github.io）では実施しない。オーナーの localStorage（最高得点・図鑑解禁・称号）を書き換えないため。",
+    "このゲームに不可逆・外部影響の操作は存在しない（通信をしない）。",
+    "受入NG2件: B-7（SPEC §9 の #test が皆既月蝕まで届かない）・C-8（夜明け後もスコアが動き、結果カード・BEST と食い違う）。数え方: completed=6 は摩擦なしの完了（A-1/A-2/A-3/B-4/C-9/D-10）、with_friction=4 は摩擦ありの完了（B-5/B-6/B-7/C-8）。うち B-7・C-8 は受入判定が ng。",
+    "2026-08-28 夜: 5件の修正を本体へ入れてビルドし直し、6件を再検査した（results.jsonl の retest_of 付きの行）。受入NGだった B-7・C-8 は ok になった。A-1 は「先出し(peek)」で摩擦を減らしたが、案内カードが出るまでの2.87秒そのものは変えていないので摩擦ありのまま。金継ぎも本体で測り直し、3画面×3幅すべて散らかり度6/2/10・定番度25/17/17・破れ0・悪化0。"
+  ]
+}
