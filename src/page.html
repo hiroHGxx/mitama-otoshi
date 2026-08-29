@@ -423,7 +423,7 @@
     background-size: cover;
     background-position: center top;
     opacity: 0;
-    transition: opacity 1.2s ease;
+    transition: opacity .6s ease; /* 1.2s だと札絵が澄む前に案内カードが出てしまう（2026-08-29） */
   }
   #title-overlay.art-in #title-bg { opacity: 1; animation: bg-zoom 9s ease-out forwards; }
   @keyframes bg-zoom { from { transform: scale(1.06); } to { transform: scale(1); } }
@@ -434,20 +434,15 @@
     inset: 0;
     background: linear-gradient(180deg, rgba(10, 10, 24, .30) 0%, rgba(10, 10, 24, .72) 55%, rgba(10, 10, 24, .90) 100%);
     opacity: 0;
-    transition: opacity .9s ease;
+    transition: opacity .6s ease; /* カード(.7s)より先に濃くなり切る＝文字が読める側に早く着く */
   }
   #title-overlay.ready::before { opacity: 1; }
-  /* カードは少し遅れてふわっと */
+  /* カードは札絵を見せたあと、0% → 100% を一段で。踊り場（旧 .peek の 55%）は作らない */
   #title-overlay .card {
     opacity: 0;
     transform: translateY(16px);
-    transition: opacity .8s ease, transform .8s ease;
+    transition: opacity .7s ease, transform .7s ease;
     pointer-events: none;
-  }
-  #title-overlay.peek .card {
-    opacity: .55;
-    transform: none;
-    pointer-events: auto;
   }
   #title-overlay.ready .card {
     opacity: 1;
@@ -624,6 +619,22 @@
   #final-title-label { font-size: 12px; letter-spacing: .2em; color: var(--ink-dim); }
   #final-title { font-size: 17px; font-weight: 800; letter-spacing: .2em; color: var(--moon); margin-top: 2px; }
   #best-title { font-size: 12px; letter-spacing: .1em; color: var(--ink-dim); margin-top: -4px; }
+  /* 全国ランキング（わいわいタウン）。取れなかった行は hidden で丸ごと消える＝言い訳を出さない */
+  #final-rank { display: flex; flex-direction: column; gap: 3px; }
+  #final-rank[hidden], #final-rank-mark[hidden], #final-rank-line[hidden] { display: none; }
+  #final-rank-mark { font-size: 12px; font-weight: 800; letter-spacing: .2em; color: var(--moon); }
+  #final-rank-line { font-size: 13px; letter-spacing: .1em; color: var(--ink-dim); }
+  #final-rank-line em { font-style: normal; font-weight: 800; color: var(--kindei); }
+  /* 背の低い画面では結果カードの余白と行間だけを詰める（2026-08-29）。
+     全国順位の2行ぶん背が伸びて「もう一夜」が画面の外へ出るのを防ぐ。
+     札絵は到達の記念なので削らない・文字も12pxの床を割らない＝縮めるのは余白だけ。
+     実測: 表示領域375×553（iPhone SE をSafariのバーごと想定）で
+     カード 624.4px → 572.4px＝**順位の行を足す前の高さ（571.9px）と同じ**に戻る。 */
+  @media (max-height: 700px) {
+    /* 縦の余白と行間だけを詰める。横の余白は @media (max-width: 430px) の 22px に任せる
+       （padding の一括指定で書くと、狭い画面用に詰めてある横の余白まで押し戻してしまう） */
+    #overlay .card { padding-top: 18px; padding-bottom: 18px; gap: 8px; }
+  }
   #best-title em { font-style: normal; color: var(--moon); }
   footer {
     width: 100%;
@@ -694,6 +705,10 @@
       <div id="final-score">0</div>
       <div id="final-tier"></div>
     </div>
+    <div id="final-rank" hidden>
+      <div id="final-rank-mark" hidden>最高記録を更新</div>
+      <div id="final-rank-line" hidden></div>
+    </div>
     <button id="retry">もう一夜</button>
   </div>
 </div>
@@ -715,6 +730,13 @@
 <div id="cutin"><img id="cutin-img" alt="満月成就"></div>
 <div id="eclipse"><div class="e-dark"></div><img class="e-art" id="eclipse-img" alt=""><div class="e-flash"></div><svg class="e-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="#C93A2E" stroke-width="2.8" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)" opacity=".8"/><circle cx="50" cy="50" r="40" fill="none" stroke="#E0562F" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="167 84" transform="rotate(-58 50 50)"/></svg><div class="e-embers" id="e-embers"></div><div class="e-text">皆既月蝕</div></div>
 
+<!-- わいわいタウンSDK（全国ランキング）。タウンの外・CSPで止まる環境（Claude Artifact）では
+     読めないが、その場合もゲームは一切変わらない（game.js 側で window.waiwai の有無を見ている）。
+     crossorigin="anonymous" は省略しない（COEP下で黙ってブロックされる実例が公式仕様書にある）。
+     build-dist.js のインライン化は「src だけを持つ script タグ」を拾う正規表現なので、
+     crossorigin 付きのこの行は拾われず、両ビルドとも外部参照のまま残る。
+     （コメントの中に script タグの見本を書くとそれ自体が拾われてビルドが落ちる） -->
+<script src="https://waiwai.town/sdk.js" crossorigin="anonymous"></script>
 <script src="vendor/matter.min.js"></script>
 <script src="src/bgm.js"></script>
 <script src="src/art.js"></script>

@@ -134,9 +134,169 @@
   const pendingPurges = [];   // 月光の浄化: 満月誕生時に小さな御霊を消す
   let flashUntil = 0;        // 満月・皆既月蝕の画面フラッシュ演出
   let flashColor = "#F0CE7E";
+  // ---- セーブ（わいわいタウンの枠の中でも消えないようにする） ----
+  // 第三者iframe（わいわいタウンのサイト内プレイ）ではゲーム自身の localStorage が保持されない。
+  // iPhone の Safari・Chrome の両方で実害を確認（枠の中から遊ぶとアプリ終了で最高得点がゼロに戻る／
+  // Pages を直に開くと残る）。わいわいSDK の save/load は親ページ側へ代理保存するので主経路にし、
+  // SDK が無い・読めない・応答しないときは今までどおりこのページの localStorage を直に使う
+  // （Artifact 版は CSP で sdk.js が読めない＝window.waiwai がそもそも無い）。
+  // 仕様の正本: https://waiwai.town/llms.txt「セーブデータの保全（わいわいSDK）」
+  const SAVE_KEY = "mitama_save";
+  const SAVE_TIMEOUT_MS = 2500; // ランキングの RANK_TIMEOUT_MS と同じ考え方（相手を待ちすぎない）
+  const LEGACY_KEYS = {
+    best: "mitama_best",
+    dexMax: "mitama_dex_max",
+    title: "mitama_title",
+    titleRank: "mitama_title_rank",
+    sound: "mitama_sound",
+  };
+  const TIMED_OUT = {}; // Promise.race の勝者が「時間切れ」であることの印
+
+  // 記録の実体。best / dexMax / titleRank は増える一方なので、どの経路から読んでも大きいほうを採る
+  // ＝片方が古くても記録が後退しない（移行と自己修復を同じ規則で兼ねる）。
+  const saveData = { best: 0, dexMax: 4, title: "", titleRank: -1, sound: "on" };
+  let saveResolve;
+  const saveLoaded = new Promise((res) => { saveResolve = res; });
+  let saveUseSdk = false;  // わいわい側の記録を読めた夜だけ true（読めていないのに書くと相手を潰す）
+  let soundChosen = false; // タイトルの2択で決めたあとは、遅れて届いた記録で上書きしない
+
+  // わいわいSDK の呼び出しの芯。例外・拒否・無応答のどれでも { ok:false } を返し、
+  // 握りつぶさず warn は残す（2026-08-26「CSPで止まったのに静かに落ちていた」の轍を踏まない）。
+  function waiwaiTry(fn, label, ms) {
+    let call;
+    try {
+      call = fn();
+    } catch (e) {
+      console.warn("[waiwai] " + label + " を呼べなかった", e);
+      return Promise.resolve({ ok: false });
+    }
+    const timeout = new Promise((res) => setTimeout(() => res(TIMED_OUT), ms));
+    return Promise.race([Promise.resolve(call), timeout]).then(
+      (v) => {
+        if (v === TIMED_OUT) {
+          console.warn("[waiwai] " + label + " が " + ms + "ms 以内に返らなかった");
+          return { ok: false };
+        }
+        return { ok: true, value: v };
+      },
+      (e) => {
+        console.warn("[waiwai] " + label + " が失敗した", e);
+        return { ok: false };
+      }
+    );
+  }
+
+  function mergeSave(o) {
+    if (!o || typeof o !== "object") return;
+    const num = (v) => (typeof v === "number" && isFinite(v) ? Math.floor(v) : null);
+    const b = num(o.best);
+    if (b !== null) saveData.best = Math.max(saveData.best, Math.max(0, b));
+    const d = num(o.dexMax);
+    if (d !== null) saveData.dexMax = Math.max(saveData.dexMax, Math.min(TIERS.length - 1, d));
+    const r = num(o.titleRank);
+    if (r !== null && r > saveData.titleRank && typeof o.title === "string" && o.title) {
+      saveData.titleRank = r;
+      saveData.title = o.title.slice(0, 40);
+    }
+    if (o.sound === "off" || o.sound === "on") saveData.sound = o.sound; // 好みは後から読んだ側が勝つ
+  }
+
+  // 旧キー（このページ自身の localStorage）。移行元であり、SDK が使えない夜の置き場でもある。
+  function readLegacy() {
+    const d = {};
+    try {
+      const raw = {
+        best: localStorage.getItem(LEGACY_KEYS.best),
+        dexMax: localStorage.getItem(LEGACY_KEYS.dexMax),
+        title: localStorage.getItem(LEGACY_KEYS.title),
+        titleRank: localStorage.getItem(LEGACY_KEYS.titleRank),
+        sound: localStorage.getItem(LEGACY_KEYS.sound),
+      };
+      d.__found = Object.keys(raw).some((k) => raw[k] !== null);
+      if (raw.best !== null) d.best = +raw.best;
+      if (raw.dexMax !== null) d.dexMax = +raw.dexMax;
+      if (raw.title) d.title = raw.title;
+      if (raw.titleRank !== null) d.titleRank = +raw.titleRank;
+      if (raw.sound !== null) d.sound = raw.sound === "off" ? "off" : "on";
+    } catch (e) {
+      console.warn("[save] localStorage を読めなかった", e);
+    }
+    return d;
+  }
+  function writeLegacy() {
+    try {
+      localStorage.setItem(LEGACY_KEYS.best, saveData.best);
+      localStorage.setItem(LEGACY_KEYS.dexMax, saveData.dexMax);
+      localStorage.setItem(LEGACY_KEYS.sound, saveData.sound);
+      if (saveData.title) {
+        localStorage.setItem(LEGACY_KEYS.title, saveData.title);
+        localStorage.setItem(LEGACY_KEYS.titleRank, saveData.titleRank);
+      }
+    } catch (e) {
+      console.warn("[save] localStorage へ書けなかった", e);
+    }
+  }
+  function dropLegacy() {
+    // 公式の推奨手順「旧キーを読む → waiwai.save で書く → 旧キーを消す」の最後の一歩。
+    // save が成功したときだけ呼ぶ（先に消すと、書けなかったときに記録が消える）。
+    try {
+      for (const k of Object.keys(LEGACY_KEYS)) localStorage.removeItem(LEGACY_KEYS[k]);
+    } catch (e) {}
+  }
+
+  // 記録を書く。呼び出し側は await しない（画面を待たせない）。
+  function persistSave() {
+    return saveLoaded.then(() => {
+      if (!saveUseSdk) {
+        writeLegacy();
+        return false;
+      }
+      return waiwaiTry(
+        () => window.waiwai.save(SAVE_KEY, {
+          best: saveData.best,
+          dexMax: saveData.dexMax,
+          title: saveData.title,
+          titleRank: saveData.titleRank,
+          sound: saveData.sound,
+        }),
+        "save(" + SAVE_KEY + ")",
+        SAVE_TIMEOUT_MS
+      ).then((r) => {
+        if (!r.ok) writeLegacy(); // 書けなかった夜も、せめてこのブラウザには残す
+        return r.ok;
+      });
+    }).catch((e) => {
+      console.warn("[save] 書き込みでつまずいた", e);
+      return false;
+    });
+  }
+
+  (function loadSave() {
+    const legacy = readLegacy();
+    if (!window.waiwai) {
+      console.warn("[save] わいわいSDK が読めていないので、このページの localStorage を直に使う");
+      mergeSave(legacy);
+      saveResolve();
+      return;
+    }
+    waiwaiTry(() => window.waiwai.load(SAVE_KEY), "load(" + SAVE_KEY + ")", SAVE_TIMEOUT_MS).then((r) => {
+      if (!r.ok) {
+        // 読めていない状態で書くと、向こうにある記録を低い値で潰しかねない。この夜は書かない。
+        console.warn("[save] わいわい側の記録を読めなかった。この夜は localStorage だけを使う");
+        mergeSave(legacy);
+        saveResolve();
+        return;
+      }
+      saveUseSdk = true;
+      mergeSave(legacy);   // 旧キー（移行元）
+      mergeSave(r.value);  // わいわい側の記録。数は大きいほうが残り、音の好みは後から読んだこちらが勝つ
+      saveResolve();
+      if (legacy.__found) persistSave().then((ok) => { if (ok) dropLegacy(); });
+    });
+  })();
+
   let score = 0;
   let best = 0;
-  try { best = +(localStorage.getItem("mitama_best") || 0); } catch (e) {}
   let maxTier = 0;
   let currentTier = pickTier();
   let nextTier = pickTier();
@@ -178,8 +338,7 @@
 
   // ---- 音（効果音は WebAudio 生成・BGM は公式メインテーマ） ----
   let audioCtx = null;
-  let soundOn = true;
-  try { soundOn = localStorage.getItem("mitama_sound") !== "off"; } catch (e) {}
+  let soundOn = true; // 実際の値は saveLoaded の後に入る（waiwai.load は非同期のため）
   const bgm = new Audio(BGM_DATA);
   bgm.loop = true;
   bgm.volume = 0.16; // BGMは控えめに、効果音を主役にする
@@ -441,7 +600,9 @@
 
   document.getElementById("mute").addEventListener("click", () => {
     soundOn = !soundOn;
-    try { localStorage.setItem("mitama_sound", soundOn ? "on" : "off"); } catch (e) {}
+    soundChosen = true;
+    saveData.sound = soundOn ? "on" : "off";
+    persistSave();
     applySound();
   });
 
@@ -601,7 +762,13 @@
     }
     lastTouchEnd = now;
   }, { passive: false });
-  document.addEventListener("gesturestart", (e) => e.preventDefault()); // ピンチズーム抑止
+  // ピンチズーム抑止。**等倍のときだけ**塞ぐ。無条件に塞ぐと、いったん拡大に入った後
+  // 戻すためのピンチまでこちらが止めてしまい、出口が無くなる（2026-08-29 実機報告）。
+  // visualViewport が無い環境は 1 とみなす＝従来どおり常に抑止に落ちる。
+  document.addEventListener("gesturestart", (e) => {
+    const s = (window.visualViewport && window.visualViewport.scale) || 1;
+    if (s <= 1.01) e.preventDefault();
+  });
 
   document.getElementById("retry").addEventListener("click", restart);
 
@@ -609,6 +776,7 @@
     for (const b of Composite.allBodies(world)) {
       if (b.tier !== undefined) World.remove(world, b);
     }
+    nightId++; // 前の夜のランキング応答が、新しい夜の結果カードに遅れて出るのを防ぐ
     score = 0; maxTier = 0; gameOver = false; overSince = 0;
     chainBanner = null; moonOnBoard = false; eclipseThisRun = false;
     currentTier = pickTier(); nextTier = pickTier(); canDrop = true;
@@ -636,6 +804,96 @@
     }
   }
 
+  // ---- わいわいタウン 全国ランキング（あってもなくても遊びは変わらない） ----
+  // SDK は page.html の <script src="https://waiwai.town/sdk.js" crossorigin="anonymous"> で読む。
+  // タウンの中（iframe）＝全国ランキングに載る／タウンの外（GitHub Pages・itch 等）＝SDK が
+  // このブラウザだけの自己ベスト保持に自動で落ちる／CSP で sdk.js が読めない（Claude Artifact）＝
+  // window.waiwai がそもそも無い。**どの場合も結果カードは今までどおり出る**のが最優先。
+  const RANK_BOARD = "main";
+  // SDK 自身の待ち時間はハンドシェイク最大2秒＋要求ごと5秒（sdk.js の HELLO_TIMEOUT_MS /
+  // REQUEST_TIMEOUT_MS）。結果カードをその7秒に付き合わせないよう、こちらで短く切る。
+  const RANK_TIMEOUT_MS = 2500;
+  let nightId = 0; // 「もう一夜」ごとに増える。応答が返ったとき、まだ同じ夜かを見る印
+
+  const rankNum = (v) => (typeof v === "number" && isFinite(v) && v > 0 ? Math.floor(v) : null);
+
+  // 呼び出しは必ずここを通す。例外・拒否・無応答のどれでも null を返し、握りつぶさず warn は残す
+  // （2026-08-26 の「CSPで止まったのに静かに合成音へ落ちていた」の轍を踏まないため）。
+  function waiwaiCall(fn, label) {
+    if (!window.waiwai) return Promise.resolve(null);
+    return waiwaiTry(fn, label, RANK_TIMEOUT_MS).then((r) => (r.ok ? r.value : null));
+  }
+
+  const rankEls = {
+    box: document.getElementById("final-rank"),
+    mark: document.getElementById("final-rank-mark"),
+    line: document.getElementById("final-rank-line"),
+  };
+
+  function clearRankUI() {
+    rankEls.box.hidden = true;
+    rankEls.mark.hidden = true;
+    rankEls.line.hidden = true;
+    rankEls.line.textContent = "";
+  }
+
+  // 取れたものだけ出す。取れなかった行は出さない（「取得できませんでした」も出さない）
+  function showRankUI(rank, total, improved) {
+    let any = false;
+    if (improved) {
+      rankEls.mark.hidden = false;
+      any = true;
+    }
+    if (rank !== null) {
+      rankEls.line.textContent = "";
+      const head = document.createTextNode("全国 ");
+      const em = document.createElement("em");
+      em.textContent = rank;
+      rankEls.line.appendChild(head);
+      rankEls.line.appendChild(em);
+      rankEls.line.appendChild(document.createTextNode(
+        " 位" + (total !== null && total >= rank ? " ／ " + total + "人中" : "")
+      ));
+      rankEls.line.hidden = false;
+      any = true;
+    }
+    rankEls.box.hidden = !any;
+  }
+
+  // 応答の形（2026-08-29 に sdk.js と親側 static/play-score.js の実装で確認）:
+  //   submitScore  タウン内 { ok, best, rank, improved } / タウン外 { ok, best, local:true, improved }
+  //   getTopScores タウン内 { entries, total }           / タウン外 { entries, local:true }（total なし）
+  //   getMyScore   タウン外 { best, local:true } または null（タウン内の非 null の形は未確認）
+  // 順位は submitScore の rank を正本にする。getMyScore は rank が取れなかったときの保険で、
+  // 形が未確認なので「数でなければ捨てる」読み方しかしない。
+  async function reportScore(finalScore, tier, title, myNight) {
+    if (!window.waiwai) {
+      // 画面には何も出さないが、記録には残す。「静かに失敗して誰も気づかない」を作らないため
+      console.warn("[waiwai] SDK が読めていないので全国順位は出さない（Artifact の CSP・読み込み失敗など）");
+      return;
+    }
+    const res = await waiwaiCall(
+      () => window.waiwai.submitScore(RANK_BOARD, finalScore, { tier: tier, title: title }),
+      "submitScore"
+    );
+    if (nightId !== myNight) return; // もう次の夜が始まっている
+    if (!res) return;                // 送れていない＝順位も総数も名乗らない
+    let rank = rankNum(res.rank);
+    const improved = res.improved === true;
+    if (rank === null && !res.local) {
+      const mine = await waiwaiCall(() => window.waiwai.getMyScore(RANK_BOARD), "getMyScore");
+      if (nightId !== myNight) return;
+      if (mine) rank = rankNum(mine.rank);
+    }
+    let total = null;
+    if (rank !== null) {
+      const top = await waiwaiCall(() => window.waiwai.getTopScores(RANK_BOARD, 1), "getTopScores");
+      if (nightId !== myNight) return;
+      if (top) total = rankNum(top.total);
+    }
+    showRankUI(rank, total, improved);
+  }
+
   function endGame() {
     gameOver = true;
     // あふれる直前に成立した浄化・皆既月蝕を先に清算してから記録を確定する。
@@ -655,9 +913,10 @@
       eclipseThisRun = true; // 称号「蝕を見届けた者」もここで確定する
     }
     best = Math.max(best, score);
-    try { localStorage.setItem("mitama_best", best); } catch (e) {}
-    recordDexMax();
-    saveBestTitle();
+    saveData.best = best;
+    recordDexMax();  // saveData を書き換えるだけ
+    saveBestTitle(); // 同上
+    persistSave();   // 3つまとめて1回だけ書く（await しない）
     document.getElementById("final-title").textContent = currentTitle();
     document.getElementById("final-score").textContent = score;
     document.getElementById("final-tier").textContent = "頂：" + TIERS[maxTier].name;
@@ -665,18 +924,23 @@
     const fudaEl = document.getElementById("final-fuda");
     fudaEl.src = FUDA_ART[fudaKey];
     fudaEl.style.display = "block";
+    clearRankUI(); // 前の夜の順位を残さない
     document.getElementById("overlay").classList.add("show");
     updateHud();
+    // 記録を確定したあとに送る。await しない＝結果カードの表示も「もう一夜」も待たせない
+    reportScore(score, maxTier, currentTitle(), nightId).catch((e) => {
+      // ここに落ちるのは想定外（waiwaiCall は reject しない）。unhandledrejection にはしない
+      console.warn("[waiwai] 順位の表示でつまずいた", e);
+    });
   }
 
   // ---- 御霊図鑑 ----
   // 出現抽選に入る1〜5段は最初から閲覧可。6段以上は到達した段位まで解禁（localStorageに永続）
-  let dexMax = 4;
-  try { dexMax = Math.max(4, +(localStorage.getItem("mitama_dex_max") || 4)); } catch (e) {}
+  let dexMax = 4; // 実際の値は saveLoaded の後に入る
   function recordDexMax() {
     if (maxTier > dexMax) {
       dexMax = maxTier;
-      try { localStorage.setItem("mitama_dex_max", dexMax); } catch (e) {}
+      saveData.dexMax = dexMax;
     }
   }
   let dexOpen = false;
@@ -742,27 +1006,39 @@
   function saveBestTitle() {
     // 序列: 皆既月蝕(=10) > 段位。より高い誉れだけ上書き
     const rank = eclipseThisRun ? 10 : maxTier;
-    try {
-      const prev = +(localStorage.getItem("mitama_title_rank") || -1);
-      if (rank > prev) {
-        localStorage.setItem("mitama_title_rank", rank);
-        localStorage.setItem("mitama_title", currentTitle());
-      }
-    } catch (e) {}
-  }
-  // タイトル画面: これまでの誉れ
-  try {
-    const bt = localStorage.getItem("mitama_title");
-    if (bt) {
-      const el = document.getElementById("best-title");
-      el.hidden = false;
-      el.innerHTML = "";
-      el.append("これまでの誉れ：");
-      const em = document.createElement("em");
-      em.textContent = bt;
-      el.append(em);
+    if (rank > saveData.titleRank) {
+      saveData.titleRank = rank;
+      saveData.title = currentTitle();
     }
-  } catch (e) {}
+  }
+  // タイトル画面: これまでの誉れ。#best-title は hidden で始まるので、読み終えてから一度だけ出す
+  // ＝「無いものが出る」だけで「違う値が差し替わる」チラつきは起きない
+  function showBestTitle() {
+    const el = document.getElementById("best-title");
+    if (!saveData.title) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = "";
+    el.append("これまでの誉れ：");
+    const em = document.createElement("em");
+    em.textContent = saveData.title;
+    el.append(em);
+  }
+
+  // 記録が届いたら画面に反映する。案内カードはこれを待ってから出る（下のオープニング）ので、
+  // プレイヤーの目には「0点が出てから最高得点に差し替わる」瞬間が無い。
+  saveLoaded.then(() => {
+    best = Math.max(best, saveData.best);
+    dexMax = Math.max(dexMax, saveData.dexMax);
+    if (!soundChosen) {
+      soundOn = saveData.sound !== "off";
+      applySound();
+    }
+    showBestTitle();
+    updateHud();
+  });
 
   // ---- HUD ----
   // スコアは表示値が実値を追いかけて回る（カウントアップ）。加点時に軽くポップ。
@@ -1215,26 +1491,32 @@
   }
 
   // ---- 札絵（タイトル背景・カットイン・結果画面） ----
-  // オープニング: 札絵を数秒フルで見せてから案内カードを出す（タップで飛ばせる）
+  // オープニング: 札絵だけを見せてから、案内カードを一段で出す。
+  // 透過は通過点であって滞在地ではない（2026-08-29 オーナー裁定）。以前は 300ms で `peek` が付き
+  // カードが 55% のまま約2.6秒とどまっていて、その間だけ文字が読みの床（コントラスト4.5）を割っていた。
   {
     const ov = document.getElementById("title-overlay");
     const bgEl = document.getElementById("title-bg");
     const keys = Object.keys(FUDA_ART);
     const bgKey = keys[Math.floor(Math.random() * keys.length)];
+    // 起点は「ページを開いた時刻」。performance.now() はそこからの経過ミリ秒なので、
+    // 札絵の読み込みが速い端末でも遅い端末でも狙いの時刻がずれない
+    // （以前は img.onload 起点だったので、読み込みが遅いほどカードが後ろへずれていた）
+    const ART_HOLD_MS = 1200;  // 札絵だけを見せる時間。カードはこの後 0.7 秒で 0% → 100%
     const showCard = () => ov.classList.add("ready");
+    // 記録（最高得点・これまでの誉れ）を読み終えてから出す＝出てから値が差し替わるのを作らない。
+    // saveLoaded は SAVE_TIMEOUT_MS 以内に必ず解決するので、待ちには上限がある。
+    const revealCard = () => saveLoaded.then(showCard);
     const img = new Image();
     img.onload = () => {
       bgEl.style.backgroundImage = "url(" + FUDA_ART[bgKey] + ")";
       ov.classList.add("art-in");
-      setTimeout(showCard, reducedMotion ? 400 : 2600);
+      setTimeout(revealCard, Math.max(0, (reducedMotion ? 400 : ART_HOLD_MS) - performance.now()));
     };
-    img.onerror = showCard;
+    img.onerror = revealCard;                      // 札絵が出ないなら、待つ意味が無い
     img.src = FUDA_ART[bgKey];
-    ov.addEventListener("pointerdown", showCard);  // タップで飛ばす
-    // 札絵の読み込みを待つ間、押せるものが画面に無い時間が2.87秒あった（UT 2026-08-28 R-3）。
-    // 案内カードを薄く先出しして、入口だけは最初から押せるようにする。
-    setTimeout(() => ov.classList.add("peek"), 300);
-    setTimeout(showCard, 5000);                    // 読み込みが遅い場合の保険
+    ov.addEventListener("pointerdown", revealCard); // タップで飛ばす
+    setTimeout(showCard, 5000);                     // 読み込みが遅い場合の保険（無条件）
   }
   function showCutin() {
     const box = document.getElementById("cutin");
@@ -1292,7 +1574,9 @@
   // ---- タイトル画面（音あり／音なしの2つの入口） ----
   function enterNight(withSound) {
     soundOn = withSound;
-    try { localStorage.setItem("mitama_sound", soundOn ? "on" : "off"); } catch (e) {}
+    soundChosen = true;
+    saveData.sound = soundOn ? "on" : "off";
+    persistSave();
     started = true;
     document.getElementById("title-overlay").classList.add("hidden");
     initAudio();
@@ -1339,12 +1623,15 @@
 
   // ---- 自動テスト（#autotest 付きで開くと自動で落とし続ける） ----
   if (location.hash === "#autotest") {
-    started = true;
-    document.getElementById("title-overlay").classList.add("hidden");
-    setInterval(() => {
-      aimX = CUP_L + 40 + Math.random() * (CUP_R - CUP_L - 80);
-      drop();
-    }, 700);
+    // 記録を読み終えてから始める（HUD の「最高」が 0 から差し替わるのを作らない）
+    saveLoaded.then(() => {
+      started = true;
+      document.getElementById("title-overlay").classList.add("hidden");
+      setInterval(() => {
+        aimX = CUP_L + 40 + Math.random() * (CUP_R - CUP_L - 80);
+        drop();
+      }, 700);
+    });
   }
 
   // ---- メインループ ----
