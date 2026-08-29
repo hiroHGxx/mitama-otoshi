@@ -2,3 +2,10 @@ dist/
 .DS_Store
 assets/sheets/
 node_modules/
+
+# PV・宣伝動画の中間素材（手元には残すが追跡しない。scripts/ から再生成できる）
+scripts/pv/frames_*/
+scripts/pv/check/
+scripts/pv/*.mp4
+scripts/pv/*.log
+scripts/pv/recon*
