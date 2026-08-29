@@ -339,26 +339,47 @@
   // ---- 音（効果音は WebAudio 生成・BGM は公式メインテーマ） ----
   let audioCtx = null;
   let soundOn = true; // 実際の値は saveLoaded の後に入る（waiwai.load は非同期のため）
+  const BGM_VOL = 0.16;      // BGMは控えめに、効果音を主役にする
+  const BGM_DUCK_VOL = 0.07; // 台詞が鳴っている間のBGM音量（月影とびと同値）
   const bgm = new Audio(BGM_DATA);
   bgm.loop = true;
-  bgm.volume = 0.16; // BGMは控えめに、効果音を主役にする
+  bgm.volume = BGM_VOL;
 
-  let sfxBus = null; // 効果音のマスターゲイン
+  const SFX_BUS = 0.9;       // 効果音バスの素の大きさ
+  const SFX_DUCK = 0.45;     // 台詞が鳴っている間の倍率（約 -7dB。式札かさね・月影とびと同値）
+  let sfxBus = null;   // 効果音のマスターゲイン
+  let voiceBus = null; // 台詞は sfxBus を通さない（台詞の間だけ効果音を沈めるため）
   let kotoMainBuf = null; // 実サンプル琴（単音・基音 KOTO_MAIN_HZ）
   let kotoHighBuf = null; // 実サンプル琴（高音の装飾フレーズ・固定ピッチ）
+  let voiceBuf = null;    // 開幕の台詞（咲耶）
   const KOTO_MAIN_HZ = 196.5;
   // 音源のバイト列を取り出す。Artifact 版は build-dist.js が音源を data URI に埋め込むが、
   // Artifact の CSP は data: への fetch を止めるため、そのままでは実サンプルが届かず
   // 琴が合成音のフォールバックのまま鳴り続けてしまう。data: のときは atob で自前に復号する。
+  const byteCache = {};
   function fetchBytes(url) {
-    if (!url.startsWith("data:")) return fetch(url).then(r => r.arrayBuffer());
-    // 復号はタップの処理を止めないよう次のタスクへ回す
-    return Promise.resolve().then(() => {
-      const bin = atob(url.slice(url.indexOf(",") + 1));
-      const arr = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      return arr.buffer;
-    });
+    if (byteCache[url]) return byteCache[url];
+    const p = url.startsWith("data:")
+      // 復号はタップの処理を止めないよう次のタスクへ回す
+      ? Promise.resolve().then(() => {
+          const bin = atob(url.slice(url.indexOf(",") + 1));
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return arr.buffer;
+        })
+      : fetch(url).then(r => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.arrayBuffer();
+        });
+    // 失敗した取り寄せは控えから外す＝あとで initAudio が呼ばれたときに一度やり直せる
+    byteCache[url] = p.catch(e => { delete byteCache[url]; throw e; });
+    return byteCache[url];
+  }
+  // 開幕の台詞は「月夜に入る」を押した 0.35 秒後に鳴る。押してから取り寄せ始めると
+  // 初回訪問では間に合わない（式札かさねの SPEC に同じ記述がある）。ページを開いた時点で取り始める。
+  // dist/artifact.html は data URI ＝ atob が即時に済むので、先読みせず遅延のままでよい。
+  if (!VOICE_START_DATA.startsWith("data:")) {
+    fetchBytes(VOICE_START_DATA).catch(e => console.warn("[voice] 開幕の台詞を取り寄せられなかった", e));
   }
   function initAudio() {
     if (!audioCtx) {
@@ -366,17 +387,86 @@
       if (AC) {
         audioCtx = new AC();
         sfxBus = audioCtx.createGain();
-        sfxBus.gain.value = 0.9;
+        sfxBus.gain.value = SFX_BUS;
         sfxBus.connect(audioCtx.destination);
+        // 台詞のバスは sfxBus と同じここで作る。再生時に遅延生成すると、AudioContext と
+        // 同時に鳴りはじめる開幕の台詞に間に合わず「開幕だけ沈まない」が起きる（式札かさねの実例）
+        voiceBus = audioCtx.createGain();
+        voiceBus.gain.value = SFX_BUS; // 台詞側のゲインは 1.0 のまま＝出力は現状のSE群と同等
+        voiceBus.connect(audioCtx.destination);
         // 琴サンプルを非同期で読み込む。届くまでは合成音（Karplus-Strong）で代用
-        const load = (url, set) => fetchBytes(url)
+        const load = (url, set, label) => fetchBytes(url)
           .then(ab => audioCtx.decodeAudioData(ab))
           .then(set)
-          .catch(() => {});
-        load(KOTO_MAIN_DATA, b => { kotoMainBuf = b; });
-        load(KOTO_HIGH_DATA, b => { kotoHighBuf = b; });
+          .catch(e => console.warn("[audio] " + label + " を用意できなかった", e));
+        load(KOTO_MAIN_DATA, b => { kotoMainBuf = b; }, "琴（単音）");
+        load(KOTO_HIGH_DATA, b => { kotoHighBuf = b; }, "琴（装飾句）");
+        load(VOICE_START_DATA, b => { voiceBuf = b; }, "開幕の台詞");
       }
     }
+  }
+
+  // ---- 開幕の台詞（咲耶）----
+  // 台詞は voiceBus へ流し、鳴っている間だけ効果音とBGMを沈める。琴は「浄化」の唯一の報酬で
+  // 毎タップ鳴るため、一律に下げず台詞の間だけ沈める（設計と実測は docs/VOICE.md「音量の設計」）。
+  const activeVoices = new Set(); // ♪ で消したときに途中で止められるよう追う
+  function playVoice() {
+    if (!audioCtx || !soundOn || !voiceBuf || !voiceBus) return false;
+    const src = audioCtx.createBufferSource();
+    src.buffer = voiceBuf;
+    const g = audioCtx.createGain();
+    g.gain.value = 1.0; // 台詞は聞き取りやすさ優先で前に出す
+    src.connect(g).connect(voiceBus);
+    const t = audioCtx.currentTime + 0.02;
+    activeVoices.add(src);
+    src.onended = () => activeVoices.delete(src);
+    src.start(t);
+    duckForVoice(t, voiceBuf.duration);
+    return true;
+  }
+  // 復号が間に合わなかったときだけ、短い間（0.8秒）だけ待って鳴らす。
+  // 間に合わなければ諦める＝扉も盤面も何も変わらない
+  function playVoiceWhenReady(waitLeftMs) {
+    if (!soundOn || !audioCtx) return;
+    if (playVoice()) return;
+    if (waitLeftMs <= 0) { console.warn("[voice] 開幕の台詞が間に合わなかった（音源が届いていない）"); return; }
+    setTimeout(() => playVoiceWhenReady(waitLeftMs - 80), 80);
+  }
+  // BGM は HTMLAudio の一本道。ゲイン曲線が使えないので短い階段で寄せる（急に戻すと段差が聞こえる）
+  let bgmFade = null;
+  function bgmTo(target, ms) {
+    if (bgmFade) { clearInterval(bgmFade); bgmFade = null; }
+    const from = bgm.volume;
+    const t0 = performance.now();
+    bgmFade = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      try { bgm.volume = from + (target - from) * k; } catch (e) {}
+      if (k >= 1) { clearInterval(bgmFade); bgmFade = null; }
+    }, 40);
+  }
+  let duckTimer = null;
+  function duckForVoice(startAt, dur) {
+    if (sfxBus) {
+      const g = sfxBus.gain;
+      g.cancelScheduledValues(startAt);
+      g.setTargetAtTime(SFX_BUS * SFX_DUCK, startAt, 0.05);                        // 0.15秒ほどで沈む
+      g.setTargetAtTime(SFX_BUS, Math.max(startAt + 0.1, startAt + dur - 0.2), 0.12); // 語尾にかけて戻す
+    }
+    bgmTo(BGM_DUCK_VOL, 150);
+    if (duckTimer) clearTimeout(duckTimer);
+    duckTimer = setTimeout(() => { duckTimer = null; bgmTo(BGM_VOL, 400); }, Math.max(0, dur * 1000 - 200));
+  }
+  // ♪ で音を消したら、鳴っている台詞を止めて沈めた分もその場で戻す
+  function stopVoices() {
+    for (const s of activeVoices) { try { s.stop(); } catch (e) {} }
+    activeVoices.clear();
+    if (duckTimer) { clearTimeout(duckTimer); duckTimer = null; }
+    if (audioCtx && sfxBus) {
+      const g = sfxBus.gain;
+      g.cancelScheduledValues(audioCtx.currentTime);
+      g.setTargetAtTime(SFX_BUS, audioCtx.currentTime, 0.05);
+    }
+    bgmTo(BGM_VOL, 200);
   }
 
   // --- 和楽器風の合成音 ---
@@ -585,6 +675,7 @@
       if (soundOn) bgm.play().catch(() => {});
       else bgm.pause();
     }
+    if (!soundOn) stopVoices(); // 台詞の途中で消したら、沈めた効果音も一緒に戻す
   }
   // ホーム画面に戻る・別タブに移るなど、画面が見えなくなったら音を止める
   document.addEventListener("visibilitychange", () => {
@@ -781,6 +872,7 @@
     chainBanner = null; moonOnBoard = false; eclipseThisRun = false;
     currentTier = pickTier(); nextTier = pickTier(); canDrop = true;
     document.getElementById("overlay").classList.remove("show");
+    closeBanzuke(); // 番付を開いたまま「もう一夜」に戻ることは無いはずだが、閉じ残しを作らない
     updateHud();
   }
 
@@ -813,9 +905,11 @@
   // SDK 自身の待ち時間はハンドシェイク最大2秒＋要求ごと5秒（sdk.js の HELLO_TIMEOUT_MS /
   // REQUEST_TIMEOUT_MS）。結果カードをその7秒に付き合わせないよう、こちらで短く切る。
   const RANK_TIMEOUT_MS = 2500;
+  const BANZUKE_LIMIT = 10; // 番付に載せる上位の人数
   let nightId = 0; // 「もう一夜」ごとに増える。応答が返ったとき、まだ同じ夜かを見る印
 
   const rankNum = (v) => (typeof v === "number" && isFinite(v) && v > 0 ? Math.floor(v) : null);
+  const scoreNum = (v) => (typeof v === "number" && isFinite(v) && v >= 0 ? Math.floor(v) : null);
 
   // 呼び出しは必ずここを通す。例外・拒否・無応答のどれでも null を返し、握りつぶさず warn は残す
   // （2026-08-26 の「CSPで止まったのに静かに合成音へ落ちていた」の轍を踏まないため）。
@@ -830,15 +924,106 @@
     line: document.getElementById("final-rank-line"),
   };
 
+  // ---- 番付（全国ランキングの一覧・上位10人＋自分） ----
+  // 開き方は御霊図鑑とまったく同じ（✕ と外側タップで閉じる）。作法を増やさない。
+  // 中身は結果カードに順位を出したときに一緒に取り込んだ控えから描く＝押してから待たせない・
+  // 押してから失敗する経路も作らない。取れていなければ入口（釦）自体が生えない。
+  const bzEls = {
+    box: document.getElementById("banzuke"),
+    close: document.getElementById("bz-close"),
+    sub: document.getElementById("bz-sub"),
+    list: document.getElementById("bz-list"),
+    gap: document.getElementById("bz-gap"),
+    me: document.getElementById("bz-me"),
+  };
+  const banzuke = { entries: null, total: null, myRank: null, myScore: null };
+
+  // 相手の応答は他人が入れた名前を含むので、必ず textContent で置く（innerHTML を使わない）。
+  // 形が崩れている項目は静かに捨てる（1件も残らなければ entries は null ＝入口を出さない）。
+  function normalizeEntries(list) {
+    if (!Array.isArray(list)) return null;
+    const out = [];
+    for (const e of list) {
+      if (!e || typeof e !== "object") continue;
+      const rank = rankNum(e.rank);
+      const score = scoreNum(e.score);
+      if (rank === null || score === null) continue;
+      const raw = typeof e.name === "string" ? e.name.trim() : "";
+      out.push({ rank: rank, name: (raw || "ナナシ").slice(0, 20), score: score });
+      if (out.length >= BANZUKE_LIMIT) break;
+    }
+    out.sort((a, b) => a.rank - b.rank);
+    return out.length ? out : null;
+  }
+
+  function bzRow(rank, name, score, isMe) {
+    const li = document.createElement("li");
+    li.className = "bz-row" + (rank <= 3 ? " top" : "") + (isMe ? " me" : "");
+    if (isMe) li.setAttribute("aria-current", "true");
+    const r = document.createElement("span");
+    r.className = "bz-rank";
+    r.textContent = rank;
+    const n = document.createElement("span");
+    n.className = "bz-name";
+    n.textContent = name;
+    const s = document.createElement("span");
+    s.className = "bz-score";
+    s.textContent = score;
+    li.appendChild(r);
+    li.appendChild(n);
+    li.appendChild(s);
+    return li;
+  }
+
+  function renderBanzuke() {
+    const rows = banzuke.entries || [];
+    bzEls.list.textContent = "";
+    const inList = banzuke.myRank !== null && rows.some((e) => e.rank === banzuke.myRank);
+    for (const e of rows) bzEls.list.appendChild(bzRow(e.rank, e.name, e.score, e.rank === banzuke.myRank));
+    // 上位に居ない夜だけ、間を空けて自分の行を下に足す（居るときは二重に出さない）
+    bzEls.me.textContent = "";
+    const showMe = !inList && banzuke.myRank !== null && banzuke.myScore !== null;
+    if (showMe) bzEls.me.appendChild(bzRow(banzuke.myRank, "あなた", banzuke.myScore, true));
+    bzEls.me.hidden = !showMe;
+    bzEls.gap.hidden = !showMe;
+    if (banzuke.total !== null) {
+      bzEls.sub.textContent = "";
+      bzEls.sub.appendChild(document.createTextNode("全国 "));
+      const em = document.createElement("em");
+      em.textContent = banzuke.total;
+      bzEls.sub.appendChild(em);
+      bzEls.sub.appendChild(document.createTextNode("人"));
+      bzEls.sub.hidden = false;
+    } else {
+      bzEls.sub.hidden = true;
+    }
+  }
+
+  function openBanzuke() {
+    if (!banzuke.entries) return; // 控えが無いのに開かない（入口も出ていないはずだが念のため）
+    renderBanzuke();
+    bzEls.box.classList.add("show");
+  }
+  function closeBanzuke() {
+    bzEls.box.classList.remove("show");
+  }
+  bzEls.close.addEventListener("click", closeBanzuke);
+  bzEls.box.addEventListener("click", (e) => { if (e.target === bzEls.box) closeBanzuke(); });
+
   function clearRankUI() {
     rankEls.box.hidden = true;
     rankEls.mark.hidden = true;
     rankEls.line.hidden = true;
     rankEls.line.textContent = "";
+    banzuke.entries = null;
+    banzuke.total = null;
+    banzuke.myRank = null;
+    banzuke.myScore = null;
+    closeBanzuke();
   }
 
   // 取れたものだけ出す。取れなかった行は出さない（「取得できませんでした」も出さない）
-  function showRankUI(rank, total, improved) {
+  function showRankUI(rank, total, improved, entries, myScore) {
     let any = false;
     if (improved) {
       rankEls.mark.hidden = false;
@@ -846,14 +1031,35 @@
     }
     if (rank !== null) {
       rankEls.line.textContent = "";
-      const head = document.createTextNode("全国 ");
+      // 上位の顔ぶれまで取れた夜だけ、行を釦で包んで番付への入口にする
+      // （御霊図鑑の階梯と同じ手。押し所は釦側で確保する）。取れていなければ素の span のまま。
+      const canOpen = entries !== null;
+      const holder = document.createElement(canOpen ? "button" : "span");
+      if (canOpen) {
+        holder.type = "button";
+        holder.className = "rank-open";
+        holder.setAttribute("aria-label", "番付を見る");
+        holder.addEventListener("click", openBanzuke);
+        banzuke.entries = entries;
+        banzuke.total = total;
+        banzuke.myRank = rank;
+        banzuke.myScore = myScore;
+      }
       const em = document.createElement("em");
       em.textContent = rank;
-      rankEls.line.appendChild(head);
-      rankEls.line.appendChild(em);
-      rankEls.line.appendChild(document.createTextNode(
+      holder.appendChild(document.createTextNode("全国 "));
+      holder.appendChild(em);
+      holder.appendChild(document.createTextNode(
         " 位" + (total !== null && total >= rank ? " ／ " + total + "人中" : "")
       ));
+      if (canOpen) {
+        const mark = document.createElement("span");
+        mark.className = "rank-open-mark";
+        mark.setAttribute("aria-hidden", "true");
+        mark.textContent = "›";
+        holder.appendChild(mark);
+      }
+      rankEls.line.appendChild(holder);
       rankEls.line.hidden = false;
       any = true;
     }
@@ -885,13 +1091,25 @@
       if (nightId !== myNight) return;
       if (mine) rank = rankNum(mine.rank);
     }
+    // 総数と番付の顔ぶれは同じ1回で取る（結果カードの「◯人中」と番付の中身は同じ応答の別の欄）。
+    // 押してから取りにいかない＝開くのを待たせないし、押してから失敗する経路も生えない。
     let total = null;
+    let entries = null;
     if (rank !== null) {
-      const top = await waiwaiCall(() => window.waiwai.getTopScores(RANK_BOARD, 1), "getTopScores");
+      const top = await waiwaiCall(
+        () => window.waiwai.getTopScores(RANK_BOARD, BANZUKE_LIMIT),
+        "getTopScores"
+      );
       if (nightId !== myNight) return;
-      if (top) total = rankNum(top.total);
+      if (top) {
+        total = rankNum(top.total);
+        entries = normalizeEntries(top.entries);
+        if (entries === null) console.warn("[waiwai] 上位の顔ぶれが読めなかったので番付への入口は出さない");
+      }
     }
-    showRankUI(rank, total, improved);
+    // 順位は自己ベストに対して付くので、自分の行に出す点も送信の応答が返した best を優先する
+    const myScore = scoreNum(res.best) !== null ? scoreNum(res.best) : scoreNum(finalScore);
+    showRankUI(rank, total, improved, entries, myScore);
   }
 
   function endGame() {
@@ -1571,6 +1789,26 @@
     new Image().src = ECLIPSE_ART;
   }
 
+  // ---- 帳（とばり）----
+  // 閉じた黒緞子が現れ、咲耶の「開けるよ。」を言い終えた間（0.64秒の休符）に拍子木とともに開く。
+  // 台詞の刻みは実測（ffmpeg silencedetect）: 0.06〜0.36「さ、」／0.72〜1.28「開けるよ。」／
+  // 1.28〜1.92 休符／1.92〜2.76「夜明けまでは、」／3.01〜4.01「あたしが付き合う。」
+  const VOICE_AT_MS = 350;   // 台詞の開始（式札かさねと同じ 0.35 秒）
+  const DOOR_OPEN_AT = 1650; // = 350 + 1280。「開けるよ。」の直後＝休符の頭で開きはじめる
+  // 演出は視覚なので、音なしで入った人にも同じ時間割で開く
+  function openDoor() {
+    const door = document.getElementById("door");
+    if (!door) return 0;
+    // 開く速さは CSS 側（.door-half の transition）で決まる。reduced-motion は .35s
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const moveMs = reduce ? 350 : 1500;
+    door.classList.remove("open");
+    door.classList.add("show");
+    setTimeout(() => { door.classList.add("open"); woodblock(0); }, DOOR_OPEN_AT);
+    setTimeout(() => door.classList.remove("show"), DOOR_OPEN_AT + moveMs + 100);
+    return DOOR_OPEN_AT + moveMs; // 開ききるまでは落とせない
+  }
+
   // ---- タイトル画面（音あり／音なしの2つの入口） ----
   function enterNight(withSound) {
     soundOn = withSound;
@@ -1580,9 +1818,13 @@
     started = true;
     document.getElementById("title-overlay").classList.add("hidden");
     initAudio();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
     applySound();
     fitCanvas();
     loadBoardBg();
+    // 帳が開くまでは玉を落とせない（開始タップの名残がそのまま投下にならない意味も兼ねる）
+    pausedUntil = performance.now() + openDoor();
+    setTimeout(() => playVoiceWhenReady(800), VOICE_AT_MS);
     setTimeout(preloadFuda, 1200); // 遊びはじめの裏で札絵を先読み
   }
   document.getElementById("start").addEventListener("click", () => enterNight(true));

@@ -5,3 +5,6 @@ const BGM_DATA = "assets/audio/kitan_maintheme.m4a";
 // main は単音（基音 196.5Hz / G3）で音程を変えて使い回す。high は装飾フレーズで固定ピッチ再生専用。
 const KOTO_MAIN_DATA = "assets/audio/koto_pluck_main.m4a";
 const KOTO_HIGH_DATA = "assets/audio/koto_pluck_high.m4a";
+// 開幕の台詞（咲耶）。公式配布の参照音声から制作した1本だけ。制作記録は docs/VOICE.md。
+// 「さ、開けるよ。——夜明けまでは、あたしが付き合う」（4.08秒）
+const VOICE_START_DATA = "assets/audio/voice_sakuya_start.m4a";

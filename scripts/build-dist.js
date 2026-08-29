@@ -31,7 +31,11 @@ const head = art.match(/<head>([\s\S]*?)<\/head>/)[1]
   .replace(/<title>[\s\S]*?<\/title>\s*/, "");
 const body = art.match(/<body>([\s\S]*)<\/body>/)[1];
 fs.mkdirSync(path.join(root, "dist"), { recursive: true });
-fs.writeFileSync(path.join(root, "dist", "artifact.html"), "<title>御霊おとし</title>\n" + head + body);
+// charset は head から meta ごと剥がしているので、ここで必ず先頭に戻す。
+// 無いとブラウザが文字コードを推測し、file:// でも化ける（2026-08-29に IBM866 と誤推測されて発覚）。
+// 非ASCIIを含む <title> より前に置くこと。
+fs.writeFileSync(path.join(root, "dist", "artifact.html"),
+  '<meta charset="utf-8">\n<title>御霊おとし</title>\n' + head + body);
 fs.rmSync(path.join(root, "dist", "index.html"), { force: true });
 console.log("index.html:", fs.statSync(path.join(root, "index.html")).size,
   "/ dist/artifact.html:", fs.statSync(path.join(root, "dist/artifact.html")).size);
