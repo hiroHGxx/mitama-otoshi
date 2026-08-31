@@ -9,3 +9,5 @@ scripts/pv/check/
 scripts/pv/*.mp4
 scripts/pv/*.log
 scripts/pv/recon*
+scripts/pv/ulist.txt
+scripts/pv/update-filter.txt
