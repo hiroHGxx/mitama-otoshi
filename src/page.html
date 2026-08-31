@@ -132,6 +132,8 @@
     justify-content: center;
     background: rgba(10, 10, 24, .78);
     z-index: 10;
+    /* 結果札がホームバーの帯へ入らないための下余白（中央寄せが env/2 だけ上へ寄る） */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   #overlay.show { display: flex; }
   .card {
@@ -413,7 +415,9 @@
     align-items: center;
     justify-content: center;
     gap: 3px;
-    padding: 6px 8px 2px;
+    /* 下端の安全余白: viewport-fit=cover なので、iPhoneのホームバーの裏まで版面が伸びる。
+       最下段の階梯（押し所）が飲まれないよう、実機の値ぶんだけ下に逃がす（無い端末では0） */
+    padding: 6px 8px calc(2px + env(safe-area-inset-bottom, 0px));
     width: 100%;
     max-width: 480px;
   }
