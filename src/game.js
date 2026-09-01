@@ -1112,8 +1112,16 @@
     showRankUI(rank, total, improved, entries, myScore);
   }
 
+  // 全国ランキングへ送ってよい夜か（kitan-waiwai-sdk の芯7・2026-09-01）。
+  // 演出確認（#test）と自動プレイ（#autotest）は本番ルールで動くので塞がないと番付が汚れる
+  // （番付の「ナナシ 725」は撮影のプレイだった）。0点の夜は「一度も記録が無い人」だけ送らない
+  // ＝番付に0の行を作らない。記録を持つ人の0点は送る（自己ベストは下がらず、順位の行が毎夜出る）。
+  const AUTO_HASH = location.hash === "#test" || location.hash === "#autotest";
+  const canSubmitScore = (hadRecordBeforeTonight) => !AUTO_HASH && (score > 0 || hadRecordBeforeTonight);
+
   function endGame() {
     gameOver = true;
+    const hadRecordBeforeTonight = best > 0; // 今夜の点を取り込む前に控える
     // あふれる直前に成立した浄化・皆既月蝕を先に清算してから記録を確定する。
     // 保留のまま凍らせると、プレイヤーが勝ち取った点を取り上げることになる。
     while (pendingPurges.length) {
@@ -1146,7 +1154,7 @@
     document.getElementById("overlay").classList.add("show");
     updateHud();
     // 記録を確定したあとに送る。await しない＝結果カードの表示も「もう一夜」も待たせない
-    reportScore(score, maxTier, currentTitle(), nightId).catch((e) => {
+    if (canSubmitScore(hadRecordBeforeTonight)) reportScore(score, maxTier, currentTitle(), nightId).catch((e) => {
       // ここに落ちるのは想定外（waiwaiCall は reject しない）。unhandledrejection にはしない
       console.warn("[waiwai] 順位の表示でつまずいた", e);
     });

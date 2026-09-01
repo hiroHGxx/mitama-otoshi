@@ -512,3 +512,15 @@ SDK が親として認めるのは `https://waiwai.town` / `localhost:8787` / `1
 - `#overlay` に `padding-bottom: env(...)`（結果札が帯へ入らない保険。中央寄せが env/2 上がるだけ）
 - 帳の `.door-band` の `bottom:0` は演出の内側なので対象外（総点検の grep が拾ったが誤検出）
 - 検証: 実ブラウザ読み込みで pageerror 0・env=0 の端末では余白2pxのまま（従来と一致）
+
+## 2026-09-01 番付へ送ってよい夜の守りと、README の番付の節 — `src/game.js` `README.md`
+
+`kitan-precheck`（自作の公開前検査）が「README に番付の節が無い」を拾い、書くために実装を読んだら
+**送る守りが1つも無かった**——`endGame` が無条件に `reportScore` を呼び、`#test`（演出確認）と
+`#autotest`（自動プレイ）の夜明けも、0点の夜も全国番付へ送っていた（番付の「ナナシ 725」は撮影のプレイ）。
+
+- `canSubmitScore(hadRecordBeforeTonight)`: `#test`／`#autotest` は送らない。0点は「一度も記録が無い人」だけ送らない
+  （宵あらわし 08-31・式札かさね 09-01 と同じ規則。記録を持つ人の0点は送る＝自己ベストは下がらず順位が毎夜出る）
+- `hadRecordBeforeTonight = best > 0` を `endGame` の頭（今夜の点を取り込む前）で控える
+- 検査 `scripts/check-submit.js`（sdk.js 遮断＋stub・`#autotest` の夜明けで送信0回）を足した。本作には playtest.js が無かった
+- README に「番付」の節（送る点・送らない経路・記録の置き場）とマナーモードの一行
