@@ -11,3 +11,4 @@ scripts/pv/*.log
 scripts/pv/recon*
 scripts/pv/ulist.txt
 scripts/pv/update-filter.txt
+scripts/pv/intro-*/
